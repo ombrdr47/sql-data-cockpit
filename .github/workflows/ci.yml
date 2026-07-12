@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Backend: lint + unit tests ─────────────────────────────────────────────
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY || 'gsk_test_key_for_ci' }}
+      JWT_SECRET_KEY: ci-test-secret-key-at-least-32-chars-long
+      CHINOOK_DB_URL: postgresql+asyncpg://chinook_ro:readonlypass@localhost:5432/chinook
+      APP_DB_URL: postgresql+asyncpg://appuser:apppass@localhost:5432/app_db
+      APP_DB_SYNC_URL: postgresql://appuser:apppass@localhost:5432/app_db
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install ruff
+
+      - name: Lint with ruff
+        run: ruff check backend/
+
+      - name: Set up Chinook DB
+        run: |
+          # Create chinook and app_db databases
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE chinook;" || true
+          PGPASSWORD=postgres psql -h localhost -U postgres -d chinook -f backend/data/Chinook_PostgreSql.sql 2>/dev/null || true
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE app_db;" || true
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE ROLE appuser WITH LOGIN PASSWORD 'apppass';" || true
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE app_db TO appuser;" || true
+          PGPASSWORD=postgres psql -h localhost -U postgres -d app_db -f backend/data/init_app_db.sql || true
+          PGPASSWORD=postgres psql -h localhost -U postgres -d app_db -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO appuser;" || true
+          PGPASSWORD=postgres psql -h localhost -U postgres -d chinook -f backend/data/init_readonly_role.sql || true
+
+      - name: Run unit tests
+        run: |
+          python -m pytest backend/tests/ -v --tb=short -x 2>&1
+
+  # ── Frontend: type check + build ──────────────────────────────────────────
+  frontend-build:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build
+        working-directory: frontend
+        run: npm run build
+        env:
+          VITE_API_URL: http://localhost:8000
+
+  # ── Eval (optional, runs only if GROQ_API_KEY secret is set) ──────────────
+  eval:
+    name: Eval (Simple category)
+    runs-on: ubuntu-latest
+    if: ${{ secrets.GROQ_API_KEY != '' }}
+    needs: [backend-test]
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      JWT_SECRET_KEY: ci-test-secret-key-at-least-32-chars-long
+      CHINOOK_DB_URL: postgresql+asyncpg://chinook_ro:readonlypass@localhost:5432/chinook
+      APP_DB_URL: postgresql+asyncpg://appuser:apppass@localhost:5432/app_db
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r backend/requirements.txt
+
+      - name: Set up Chinook DB
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE chinook;" || true
+          PGPASSWORD=postgres psql -h localhost -U postgres -d chinook -f backend/data/Chinook_PostgreSql.sql
+          PGPASSWORD=postgres psql -h localhost -U postgres -d chinook -f backend/data/init_readonly_role.sql
+
+      - name: Run eval (simple category only)
+        run: python -m backend.eval.run_eval --category simple --verbose

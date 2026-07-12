@@ -1,0 +1,69 @@
+services:
+  # ── Postgres (Production Analytics & Application Database) ───────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: text2sql_postgres_prod
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ChangeMeSecurely123!}
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+      - ./backend/data/Chinook_PostgreSql.sql:/docker-entrypoint-initdb.d/10_Chinook_PostgreSql.sql:ro
+      - ./backend/data/init_readonly_role.sql:/docker-entrypoint-initdb.d/init_readonly_role.sql:ro
+      - ./backend/data/init_app_db.sql:/docker-entrypoint-initdb.d/init_app_db.sql:ro
+      - ./backend/data/zz_init_app.sh:/docker-entrypoint-initdb.d/zz_init_app.sh:ro
+    ports:
+      - "127.0.0.1:5432:5432"  # Bind strictly to localhost so DB is not exposed to public internet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Backend (FastAPI Production Engine) ──────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: text2sql_backend_prod
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      CHINOOK_DB_URL: postgresql+asyncpg://chinook_ro:readonlypass@postgres:5432/chinook
+      APP_DB_URL: postgresql+asyncpg://appuser:apppass@postgres:5432/app_db
+      APP_DB_SYNC_URL: postgresql://appuser:apppass@postgres:5432/app_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-30}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-14}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-https://yourdomain.com}
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Frontend (Nginx Production Bundle) ───────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: text2sql_frontend_prod
+    restart: always
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+
+volumes:
+  postgres_prod_data:

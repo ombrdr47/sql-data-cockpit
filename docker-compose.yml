@@ -1,0 +1,75 @@
+services:
+  # ── Postgres (single container, two logical databases) ────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: text2sql_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres  # default db, we'll create chinook + app_db via init scripts
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/data/Chinook_PostgreSql.sql:/docker-entrypoint-initdb.d/10_Chinook_PostgreSql.sql:ro
+      - ./backend/data/init_readonly_role.sql:/docker-entrypoint-initdb.d/init_readonly_role.sql:ro
+      - ./backend/data/init_app_db.sql:/docker-entrypoint-initdb.d/init_app_db.sql:ro
+      - ./backend/data/zz_init_app.sh:/docker-entrypoint-initdb.d/zz_init_app.sh:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d app_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── Backend (FastAPI) ──────────────────────────────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: text2sql_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      CHINOOK_DB_URL: postgresql+asyncpg://chinook_ro:readonlypass@postgres:5432/chinook
+      APP_DB_URL: postgresql+asyncpg://appuser:apppass@postgres:5432/app_db
+      APP_DB_SYNC_URL: postgresql://appuser:apppass@postgres:5432/app_db
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-15}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${REFRESH_TOKEN_EXPIRE_DAYS:-7}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+      LANGCHAIN_TRACING_V2: ${LANGCHAIN_TRACING_V2:-false}
+      LANGCHAIN_API_KEY: ${LANGCHAIN_API_KEY:-}
+      LANGCHAIN_PROJECT: ${LANGCHAIN_PROJECT:-text-to-sql-agent}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app/backend
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Frontend (Vite dev / nginx prod) ─────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    container_name: text2sql_frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
