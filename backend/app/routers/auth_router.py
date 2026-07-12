@@ -93,7 +93,7 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
         value=token,
         httponly=True,
         secure=is_secure,
-        samesite="lax",
+        samesite="none" if is_secure else "lax",
         max_age=COOKIE_MAX_AGE,
         path="/auth/refresh",
     )
