@@ -178,7 +178,16 @@ def create_app() -> FastAPI:
 app = create_app()
 
 
-# ── Health check ───────────────────────────────────────────────────────────────
+@app.get("/", tags=["health"])
+@app.head("/", tags=["health"])
+async def root():
+    return {
+        "status": "ok",
+        "service": "SQL Data Cockpit v2.0 Backend",
+        "docs_url": "/docs",
+        "health_url": "/health",
+    }
+
 
 @app.get("/health", tags=["health"])
 async def health():
