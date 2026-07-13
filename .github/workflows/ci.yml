@@ -53,17 +53,28 @@ jobs:
       - name: Lint with ruff
         run: ruff check backend/
 
-      - name: Set up Chinook DB
+      - name: Set up databases
         run: |
-          # Create chinook and app_db databases
-          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE chinook;" || true
-          PGPASSWORD=postgres psql -h localhost -U postgres -d chinook -f backend/data/Chinook_PostgreSql.sql 2>/dev/null || true
-          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE app_db;" || true
-          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE ROLE appuser WITH LOGIN PASSWORD 'apppass';" || true
-          PGPASSWORD=postgres psql -h localhost -U postgres -c "GRANT ALL PRIVILEGES ON DATABASE app_db TO appuser;" || true
-          PGPASSWORD=postgres psql -h localhost -U postgres -d app_db -f backend/data/init_app_db.sql || true
-          PGPASSWORD=postgres psql -h localhost -U postgres -d app_db -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO appuser;" || true
-          PGPASSWORD=postgres psql -h localhost -U postgres -d chinook -f backend/data/init_readonly_role.sql || true
+          # ── chinook analytics DB (read-only for the LLM agent) ────────────
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE chinook;"
+          # Use CI-safe seed: no DROP/CREATE DATABASE or \c metacommand
+          PGPASSWORD=postgres psql -h localhost -U postgres -d chinook \
+            -f backend/data/Chinook_PostgreSql_ci.sql
+
+          # ── app_db (users, conversations, checkpoints) ────────────────────
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE app_db;"
+          PGPASSWORD=postgres psql -h localhost -U postgres \
+            -c "CREATE ROLE appuser WITH LOGIN PASSWORD 'apppass';"
+          PGPASSWORD=postgres psql -h localhost -U postgres \
+            -c "GRANT ALL PRIVILEGES ON DATABASE app_db TO appuser;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d app_db \
+            -f backend/data/init_app_db.sql
+          PGPASSWORD=postgres psql -h localhost -U postgres -d app_db \
+            -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO appuser;"
+
+          # ── read-only chinook_ro role ─────────────────────────────────────
+          PGPASSWORD=postgres psql -h localhost -U postgres -d chinook \
+            -f backend/data/init_readonly_role.sql
 
       - name: Run unit tests
         run: |
@@ -80,7 +91,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
@@ -94,7 +105,7 @@ jobs:
         env:
           VITE_API_URL: http://localhost:8000
 
-  # ── Eval (optional, runs only on push — not PRs — to avoid missing-secret errors) ──
+  # ── Eval (runs only on push to main — not on PRs) ─────────────────────────
   eval:
     name: Eval (Simple category)
     runs-on: ubuntu-latest
@@ -136,9 +147,11 @@ jobs:
 
       - name: Set up Chinook DB
         run: |
-          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE chinook;" || true
-          PGPASSWORD=postgres psql -h localhost -U postgres -d chinook -f backend/data/Chinook_PostgreSql.sql
-          PGPASSWORD=postgres psql -h localhost -U postgres -d chinook -f backend/data/init_readonly_role.sql
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE chinook;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d chinook \
+            -f backend/data/Chinook_PostgreSql_ci.sql
+          PGPASSWORD=postgres psql -h localhost -U postgres -d chinook \
+            -f backend/data/init_readonly_role.sql
 
       - name: Run eval (simple category only)
         run: python -m backend.eval.run_eval --category simple --verbose
