@@ -18,7 +18,6 @@ Node flow (with HITL):
               ──(NEEDS_PYTHON_TOOL)──────────→ python_tool → synthesize_answer
   synthesize_answer → END
 """
-from typing import Optional
 from langgraph.graph import StateGraph, START, END
 
 from .nodes import AgentState

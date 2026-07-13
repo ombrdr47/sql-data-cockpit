@@ -6,7 +6,6 @@ Database layer:
   - Chinook schema introspection → formatted text for LLM context
   - execute_chinook_query() — enforces row cap on top of DB-level timeout
 """
-import asyncio
 from functools import lru_cache
 from typing import Any, Optional
 

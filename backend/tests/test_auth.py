@@ -7,7 +7,6 @@ Key test: cross-user conversation access must return 403/404.
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
-from httpx import AsyncClient, ASGITransport
 import uuid
 
 

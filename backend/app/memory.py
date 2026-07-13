@@ -14,7 +14,6 @@ from uuid import UUID
 
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from .models import Conversation, Message
 

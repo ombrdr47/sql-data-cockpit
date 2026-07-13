@@ -4,7 +4,6 @@ Pure routing functions, separated from graph.py to allow import without langgrap
 This makes unit tests possible without the full langgraph dependency installed.
 """
 from __future__ import annotations
-from typing import Any
 
 
 def route_after_validate(state: dict) -> str:

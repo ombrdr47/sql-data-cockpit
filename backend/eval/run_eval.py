@@ -227,7 +227,7 @@ async def run_eval(
         standalone = standalone[:max_items]
 
     print(f"\n{'='*60}")
-    print(f"Text-to-SQL Agent Evaluation")
+    print("Text-to-SQL Agent Evaluation")
     print(f"Items: {len(standalone)} | Category filter: {category or 'all'}")
     print(f"{'='*60}\n")
 
@@ -262,20 +262,20 @@ async def run_eval(
     print("RESULTS")
     print(f"{'='*60}")
     print(f"Total evaluated:      {total}")
-    print(f"")
+    print("")
     print(f"1. SQL Validity Rate:      {valid_sql}/{total} ({100*valid_sql//total if total else 0}%)")
     print(f"2. Execution Accuracy:     {accurate}/{total} ({100*accurate//total if total else 0}%)")
     if non_refusal:
         print(f"   (excl. refusal cases): {sql_acc_excl_refusal}/{len(non_refusal)} ({100*sql_acc_excl_refusal//len(non_refusal)}%)")
     if refusal_total:
         print(f"3. Refusal Accuracy:       {refusal_correct}/{refusal_total} ({100*refusal_correct//refusal_total}%)")
-    print(f"")
-    print(f"Retry distribution:")
+    print("")
+    print("Retry distribution:")
     print(f"   0 retries:  {zero_retries} ({100*zero_retries//total if total else 0}%)")
     print(f"   1 retry:    {one_retry}")
     print(f"   2 retries:  {two_retries}")
     print(f"   3 retries:  {three_retries}")
-    print(f"")
+    print("")
     print(f"Avg latency:          {avg_latency:.1f}s")
     print(f"{'='*60}\n")
 

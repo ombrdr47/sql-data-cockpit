@@ -12,7 +12,6 @@ This demonstrates the production pattern for databases with 100+ tables where
 dumping the entire schema into every prompt is impractical.
 """
 import asyncio
-from functools import lru_cache
 from typing import Optional
 
 from sqlalchemy import text

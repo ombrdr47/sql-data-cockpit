@@ -10,7 +10,7 @@ Tests cover:
   - Edge cases: empty feedback, None feedback, budget exhaustion
 """
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import patch
 
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────

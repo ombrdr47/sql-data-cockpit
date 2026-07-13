@@ -20,7 +20,6 @@ This replaces the previous dangerous in-process exec() approach, which could:
 """
 import json
 import multiprocessing
-import os
 import platform
 import traceback
 from typing import Any, Optional
