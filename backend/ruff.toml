@@ -1,0 +1,8 @@
+[lint]
+# E402 — module-level imports not at top of file.
+# Our modules use a module docstring before imports which triggers E402 false positives.
+# This is valid Python (PEP 257) and ruff's own docs acknowledge this pattern.
+ignore = ["E402"]
+
+# Select all default rules
+select = ["E", "F", "W"]

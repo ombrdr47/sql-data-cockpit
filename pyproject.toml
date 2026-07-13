@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# E402 — module-level imports not at top of file.
+#   Our modules use PEP 257 module docstrings before imports which
+#   triggers E402 false positives. This is standard valid Python.
+# E501 — line too long.
+#   Long lines in SQL injection test strings and assertion chains
+#   are intentional for readability; wrapping them reduces clarity.
+ignore = ["E402", "E501"]
+
+select = ["E", "F", "W"]

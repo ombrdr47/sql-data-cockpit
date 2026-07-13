@@ -22,7 +22,6 @@ Review endpoint (HITL resume):
 import asyncio
 import json
 import os
-import time
 from contextlib import asynccontextmanager
 from typing import Optional
 from uuid import UUID
@@ -356,56 +355,6 @@ async def chat(
 
     graph = app.state.graph
 
-    async def event_generator():
-        yield {
-            "event": "message",
-            "data": json.dumps({"type": "conversation_id", "conversation_id": conversation_id}),
-        }
-
-        initial_state = {
-            "question": question,
-            "conversation_id": conversation_id,
-            "user_id": str(current_user.id),
-            "retry_count": 0,
-            "node_path": [],
-            "sql_valid": False,
-            "generated_sql": None,
-            "validation_error": None,
-            "sql_results": None,
-            "sql_columns": None,
-            "execution_error": None,
-            "needs_python_tool": False,
-            "python_output": None,
-            "chart_base64": None,
-            "final_answer": None,
-            "selected_tables": [],
-            "hitl_approved": None,
-            "hitl_feedback": None,
-        }
-        config = {"configurable": {"thread_id": conversation_id}}
-
-        try:
-            async for event_type, event_data, final_state in _stream_graph_events(
-                graph, initial_state, config
-            ):
-                if event_type == "approval_required":
-                    # Stream ends here — frontend shows Approval Card
-                    yield {"event": "message", "data": json.dumps(event_data)}
-                    return
-
-                if event_type == "final":
-                    await _finalize_and_stream(event_generator, final_state, conversation_id)
-                    return
-
-                yield {"event": "message", "data": json.dumps(event_data, default=str)}
-
-        except Exception as e:
-            yield {
-                "event": "message",
-                "data": json.dumps({"type": "error", "content": f"An error occurred: {e}"}),
-            }
-
-    # We need a different pattern — build a proper generator
     return EventSourceResponse(_chat_generator(
         graph, question, conversation_id, str(current_user.id)
     ))
