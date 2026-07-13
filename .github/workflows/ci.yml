@@ -94,11 +94,11 @@ jobs:
         env:
           VITE_API_URL: http://localhost:8000
 
-  # ── Eval (optional, runs only if GROQ_API_KEY secret is set) ──────────────
+  # ── Eval (optional, runs only on push — not PRs — to avoid missing-secret errors) ──
   eval:
     name: Eval (Simple category)
     runs-on: ubuntu-latest
-    if: ${{ secrets.GROQ_API_KEY != '' }}
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [backend-test]
 
     services:
