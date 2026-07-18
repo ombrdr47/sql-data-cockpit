@@ -4,6 +4,7 @@
  * Features: list, rename (inline edit), delete, new conversation button.
  */
 import { useState } from 'react'
+import {useNavigate} from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../lib/api'
@@ -33,6 +34,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const queryClient = useQueryClient()
   const { user, logout } = useAuth()
+  const navigate=useNavigate()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
 
@@ -193,6 +195,14 @@ export default function Sidebar({
               <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
             </div>
           </div>
+          <button
+            onClick={() => { navigate('/settings'); onClose() }}
+            className="p-1.5 rounded hover:bg-surface-800 text-slate-500 hover:text-white transition-colors font-bold text-xs"
+            title="Settings"
+          >
+            [SETTINGS]
+          </button>
+
           <button
             onClick={logout}
             className="p-1.5 rounded hover:bg-surface-800 text-slate-500 hover:text-red-400 transition-colors font-bold text-xs"

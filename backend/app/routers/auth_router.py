@@ -12,14 +12,15 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
-from pydantic import BaseModel, EmailStr, field_validator
-from sqlalchemy import select
+from pydantic import BaseModel, EmailStr, field_validator, model_validator
+from sqlalchemy import select,update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import (
     create_access_token,
     create_refresh_token,
     hash_password,
+    hash_token,
     rotate_refresh_token,
     store_refresh_token,
     verify_password,
@@ -64,6 +65,22 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class ChangePasswordRequest(BaseModel):
+    current_password:str
+    new_password:str 
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls,v:str)->str:
+        if(len(v)<8):
+            raise ValueError("Password must be atleast 8 characters")
+        return v
+    @model_validator(mode="after")
+    def check_passwords_differ(self)->"ChangePasswordRequest":
+        if self.current_password==self.new_password:
+            raise ValueError("New Password must be different from the current Password")
+        return self
+    
 
 class UserResponse(BaseModel):
     user_id: str
@@ -246,9 +263,9 @@ async def logout(
 ):
     """Revoke the refresh token and clear the cookie."""
     if refresh_token:
-        from ..auth import hash_token
+        # from ..auth import hash_token
         token_hash = hash_token(refresh_token)
-        from sqlalchemy import update
+        # from sqlalchemy import update
         await session.execute(
             update(RefreshToken)
             .where(RefreshToken.token_hash == token_hash)
@@ -268,3 +285,32 @@ async def me(current_user: User = Depends(get_current_user)):
         role=current_user.role,
         created_at=current_user.created_at,
     )
+
+
+@router.post("/change-password",status_code=status.HTTP_204_NO_CONTENT)
+async def change_Password(body:ChangePasswordRequest,
+                          current_user:User=Depends(get_current_user),
+                          session:AsyncSession=Depends(get_appdb_session),
+):
+    if not verify_password(body.current_password,current_user.hashed_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect",
+        )
+    if body.new_password==body.current_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from a current password"
+        )
+    
+    current_user.hashed_password=hash_password(body.new_password)
+
+    await session.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id==current_user.id)
+        .values(revoked=True)
+        
+    )
+
+    await session.commit()
+
