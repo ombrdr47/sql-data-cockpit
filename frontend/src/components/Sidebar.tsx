@@ -6,8 +6,9 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import api from '../lib/api'
+import api, { connectionsApi, type UserConnection } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import ConnectionModal from './ConnectionModal'
 
 interface Conversation {
   id: string
@@ -35,6 +36,17 @@ export default function Sidebar({
   const { user, logout } = useAuth()
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
+  const [showConnModal, setShowConnModal] = useState(false)
+
+  const { data: connections = [] } = useQuery<UserConnection[]>({
+    queryKey: ['connections'],
+    queryFn: () => connectionsApi.list(),
+  })
+
+  const deleteConnMutation = useMutation({
+    mutationFn: (id: string) => connectionsApi.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connections'] }),
+  })
 
   const { data: conversations = [] } = useQuery<Conversation[]>({
     queryKey: ['conversations'],
@@ -108,6 +120,51 @@ export default function Sidebar({
           <span>[+ NEW_TRANSACTION]</span>
           <span>⚡</span>
         </button>
+      </div>
+
+      {/* Connections section */}
+      <div className="px-2 py-2 border-b border-slate-800/80">
+        <div className="flex items-center justify-between px-2 pb-1">
+          <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+            // DB_CONNECTIONS
+          </span>
+          <button
+            id="add-connection-btn"
+            onClick={() => setShowConnModal(true)}
+            className="text-[10px] text-brand-400 hover:text-brand-300 font-bold px-1 py-0.5 rounded hover:bg-brand-500/10 transition-colors"
+            title="Add database connection"
+          >
+            [+ ADD]
+          </button>
+        </div>
+        {connections.length === 0 ? (
+          <p className="text-slate-600 text-[10px] px-2 py-1">
+            No connections — using Chinook demo
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {connections.map((c) => {
+              const dotColor =
+                c.status === 'connected' ? '#4ade80'
+                : c.status === 'untested' ? '#fbbf24'
+                : '#f87171'
+              return (
+                <div key={c.id}
+                  className="group flex items-center gap-2 px-2 py-1.5 rounded border border-transparent hover:bg-surface-900 hover:border-slate-800"
+                >
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor,
+                    flexShrink: 0, boxShadow: `0 0 5px ${dotColor}88` }} />
+                  <span className="flex-1 text-[11px] text-slate-300 truncate font-mono">{c.name}</span>
+                  <button
+                    onClick={() => deleteConnMutation.mutate(c.id)}
+                    className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400 p-0.5 transition-all text-xs"
+                    title="Remove connection"
+                  >×</button>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Conversation list */}
@@ -207,6 +264,15 @@ export default function Sidebar({
 
   return (
     <>
+      {showConnModal && (
+        <ConnectionModal
+          onClose={() => setShowConnModal(false)}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ['connections'] })
+            setShowConnModal(false)
+          }}
+        />
+      )}
       {/* Mobile overlay */}
       <AnimatePresence>
         {isOpen && (

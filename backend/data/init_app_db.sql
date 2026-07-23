@@ -30,16 +30,43 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
 CREATE INDEX IF NOT EXISTS idx_rt_user_id ON refresh_tokens(user_id);
 CREATE INDEX IF NOT EXISTS idx_rt_token_hash ON refresh_tokens(token_hash);
 
+-- ── User BYODB Connections ──────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS user_connections (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name            TEXT NOT NULL,
+    host            TEXT NOT NULL,
+    port            INTEGER NOT NULL DEFAULT 5432,
+    database        TEXT NOT NULL,
+    username        TEXT NOT NULL,
+    encrypted_password TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'untested'
+                    CHECK (status IN ('untested', 'connected', 'unreachable', 'auth_failed')),
+    last_tested_at  TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT unique_user_connection_name UNIQUE (user_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_connections_user_id ON user_connections(user_id);
+
+DROP TRIGGER IF EXISTS update_user_connections_updated_at ON user_connections;
+CREATE TRIGGER update_user_connections_updated_at
+    BEFORE UPDATE ON user_connections
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 -- ── Conversations ─────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS conversations (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    title       TEXT NOT NULL DEFAULT 'New Conversation',
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title           TEXT NOT NULL DEFAULT 'New Conversation',
+    connection_id   UUID REFERENCES user_connections(id) ON DELETE SET NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX IF NOT EXISTS idx_convos_user_id ON conversations(user_id);
+CREATE INDEX IF NOT EXISTS idx_convos_connection_id ON conversations(connection_id);
 
 -- ── Messages ──────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS messages (

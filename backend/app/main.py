@@ -45,6 +45,7 @@ from .memory import (
 from .models import User
 from .routers.auth_router import router as auth_router
 from .routers.conversations_router import router as conversations_router
+from .routers.connections_router import router as connections_router
 from .schema_catalog import get_full_schema_text   # warm-up
 
 
@@ -55,7 +56,7 @@ NODE_REASONING_LABELS: dict[str, str] = {
     "generate_sql":      "✍️  Generating SQL query...",
     "validate_sql":      "🛡️  Validating SQL (AST check + schema guard)...",
     "human_review":      "👤 Awaiting your approval before execution...",
-    "execute_sql":       "⚡ Executing query against Chinook database...",
+    "execute_sql":       "⚡ Executing query...",
     "decide_next_step":  "🧠 Analyzing results — deciding next step...",
     "python_tool":       "🐍 Running Python analysis in isolated sandbox...",
     "synthesize_answer": "💬 Composing final answer...",
@@ -135,8 +136,25 @@ async def lifespan(app: FastAPI):
             f"(pool min={settings.checkpointer_pool_min} "
             f"max={settings.checkpointer_pool_max})"
         )
+
+        # ── BYODB engine eviction loop (Bug 3 fix) ─────────────────────────────
+        # Evict idle BYODB engines every 60 seconds.
+        # Without this the pool grows unboundedly, holding open connections
+        # to user databases and leaking memory over time.
+        from .engine_pool import engine_pool as _engine_pool
+
+        async def _byodb_eviction_loop():
+            while True:
+                await asyncio.sleep(60)
+                await _engine_pool.evict_expired()
+
+        _eviction_task = asyncio.create_task(_byodb_eviction_loop())
+        print("✓ BYODB engine eviction loop started (TTL: "
+              f"{settings.byodb_engine_ttl}s, check interval: 60s)")
+
         yield
         print("Shutting down — closing checkpointer pool...")
+        _eviction_task.cancel()
         await pool.close()
         return
     except Exception as e:
@@ -145,8 +163,19 @@ async def lifespan(app: FastAPI):
         app.state.pool = None
         app.state.graph = build_graph(checkpointer=None)
 
+    # Fallback eviction loop (checkpointer init failed but app still runs)
+    from .engine_pool import engine_pool as _engine_pool_fallback
+
+    async def _byodb_eviction_loop_fallback():
+        while True:
+            await asyncio.sleep(60)
+            await _engine_pool_fallback.evict_expired()
+
+    _eviction_task_fallback = asyncio.create_task(_byodb_eviction_loop_fallback())
+
     yield
     print("Shutting down...")
+    _eviction_task_fallback.cancel()
 
 
 # ── App factory ────────────────────────────────────────────────────────────────
@@ -172,6 +201,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(conversations_router)
+    app.include_router(connections_router)
 
     return app
 
@@ -200,6 +230,8 @@ async def health():
 class ChatRequest(BaseModel):
     question: str
     conversation_id: Optional[str] = None
+    # None = Chinook demo; set to a UserConnection UUID for BYODB
+    connection_id: Optional[str] = None
 
 
 class ReviewRequest(BaseModel):
@@ -353,14 +385,64 @@ async def chat(
         await auto_title_conversation(session, UUID(conversation_id), question)
         await session.commit()
 
+    # ── Resolve BYODB connection ──────────────────────────────────────────────
+    # Bug 4 fix: if the client didn't send a connection_id (e.g. page refresh),
+    # fall back to the connection_id stored on the conversation record.
+    # This ensures follow-up messages always run against the correct database.
+    from sqlalchemy import select as _sel
+    from .models import UserConnection as _UC, Conversation as _Conv
+
+    effective_connection_id: Optional[str] = body.connection_id
+
+    if not effective_connection_id and not is_new_conversation:
+        # Try to restore from the stored conversation record
+        _stored = await session.scalar(
+            _sel(_Conv).where(_Conv.id == UUID(conversation_id))
+        )
+        if _stored and _stored.connection_id:
+            effective_connection_id = str(_stored.connection_id)
+
+    connection_name: Optional[str] = None
+    if effective_connection_id:
+        _uc = await session.scalar(
+            _sel(_UC).where(
+                _UC.id == UUID(effective_connection_id),
+                _UC.user_id == current_user.id,
+            )
+        )
+        if _uc is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Connection not found or does not belong to you",
+            )
+        connection_name = _uc.name
+        # Persist the connection_id on the conversation record (for new convos
+        # or when the client switches datasource mid-session)
+        from sqlalchemy import update as _upd
+        await session.execute(
+            _upd(_Conv)
+            .where(_Conv.id == UUID(conversation_id))
+            .values(connection_id=UUID(effective_connection_id))
+        )
+        await session.commit()
+
     graph = app.state.graph
 
     return EventSourceResponse(_chat_generator(
-        graph, question, conversation_id, str(current_user.id)
+        graph, question, conversation_id, str(current_user.id),
+        connection_id=effective_connection_id,
+        datasource_name=connection_name,
     ))
 
 
-async def _chat_generator(graph, question: str, conversation_id: str, user_id: str):
+async def _chat_generator(
+    graph,
+    question: str,
+    conversation_id: str,
+    user_id: str,
+    connection_id: Optional[str] = None,
+    datasource_name: Optional[str] = None,
+):
     """Top-level SSE generator for the initial /chat request."""
     yield {
         "event": "message",
@@ -371,6 +453,9 @@ async def _chat_generator(graph, question: str, conversation_id: str, user_id: s
         "question": question,
         "conversation_id": conversation_id,
         "user_id": user_id,
+        # BYODB fields — None defaults to Chinook demo
+        "connection_id": connection_id,
+        "datasource_name": datasource_name,
         "retry_count": 0,
         "node_path": [],
         "sql_valid": False,

@@ -13,7 +13,9 @@ import { motion, AnimatePresence } from 'framer-motion'
 import MessageBubble, { type Message, type TableData } from '../components/MessageBubble'
 import Sidebar from '../components/Sidebar'
 import { type ReasoningStep } from '../components/AgentProgress'
-import api, { getAccessToken, attemptTokenRefresh, setAccessToken } from '../lib/api'
+import api, { getAccessToken, attemptTokenRefresh, setAccessToken, connectionsApi, type UserConnection } from '../lib/api'
+import DatasourcePicker from '../components/DatasourcePicker'
+import { useQuery } from '@tanstack/react-query'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -32,6 +34,7 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false)
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const queryClient = useQueryClient()
@@ -40,6 +43,16 @@ export default function Chat() {
   const isLoadingRef = useRef(false)
   const activeConversationIdRef = useRef<string | null>(null)
   const messagesRef = useRef<Message[]>([])
+  const selectedConnectionIdRef = useRef<string | null>(null)
+
+  const { data: connections = [] } = useQuery<UserConnection[]>({
+    queryKey: ['connections'],
+    queryFn: () => connectionsApi.list(),
+  })
+
+  useEffect(() => {
+    selectedConnectionIdRef.current = selectedConnectionId
+  }, [selectedConnectionId])
 
   useEffect(() => {
     isLoadingRef.current = isLoading
@@ -156,6 +169,7 @@ export default function Chat() {
         body: JSON.stringify({
           question,
           conversation_id: activeConversationIdRef.current,
+          connection_id: selectedConnectionIdRef.current ?? undefined,
         }),
       })
 
@@ -708,6 +722,13 @@ export default function Chat() {
 
         {/* Input area */}
         <footer className="px-6 py-4 border-t border-slate-800 bg-surface-950 flex-shrink-0 font-mono">
+          <div className="max-w-4xl mx-auto mb-2">
+            <DatasourcePicker
+              connections={connections}
+              selectedId={selectedConnectionId}
+              onChange={setSelectedConnectionId}
+            />
+          </div>
           <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
             <div className="relative flex items-end gap-3 bg-surface-900 border border-slate-800 focus-within:border-brand-500 rounded-md px-4 py-3 shadow-inner transition-colors">
               <span className="text-brand-500 font-bold py-0.5 select-none">&gt;</span>
@@ -721,7 +742,9 @@ export default function Chat() {
                   e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder="Enter query parameters for chinook database... (Enter to execute, Shift+Enter for multiline)"
+                placeholder={selectedConnectionId
+                  ? `Query ${connections.find(c => c.id === selectedConnectionId)?.name ?? 'your database'}... (Enter to execute)`
+                  : 'Enter query parameters for chinook database... (Enter to execute, Shift+Enter for multiline)'}
                 disabled={isLoading}
                 rows={1}
                 className="flex-1 bg-transparent text-slate-100 placeholder-slate-600 text-xs font-mono resize-none

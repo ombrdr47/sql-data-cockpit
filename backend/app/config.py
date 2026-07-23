@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     # Maximum LangGraph retry loops per question
     max_retries: int = 3
 
+    # ── BYODB ──────────────────────────────────────────────────────────────────
+    # Maximum saved connections per user (enforced in POST /connections)
+    max_connections_per_user: int = 5
+    # Seconds before an idle BYODB engine is evicted from the pool
+    byodb_engine_ttl: int = 300
+
     # ── HITL / Checkpointer pool ───────────────────────────────────────────────
     # Scale: set max to (avg_concurrent_users × avg_graphs_per_second × avg_node_time)
     # For 100 concurrent users a max of 20 is comfortably sufficient.

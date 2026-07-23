@@ -16,6 +16,11 @@ class AgentState(TypedDict, total=False):
     conversation_id: str             # UUID of the active conversation
     user_id: str                     # UUID of the authenticated user
 
+    # ── Datasource ────────────────────────────────────────────────────────────
+    # None = Chinook demo; UUID str = user's saved connection
+    connection_id: Optional[str]     # UserConnection.id, or None for Chinook
+    datasource_name: Optional[str]   # Human-readable name shown in prompts/UI
+
     # ── Schema context (upgraded: pruned per-question) ────────────────────────
     schema_text: str                 # Pruned Chinook schema DDL + sample rows
     selected_tables: list[str]       # Tables selected by table_selector node

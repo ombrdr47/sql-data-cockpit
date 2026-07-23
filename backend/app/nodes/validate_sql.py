@@ -17,12 +17,14 @@ Checks:
   5. All referenced columns exist in their tables (with fuzzy hint on failure)
 """
 import difflib
+import uuid
 
 import sqlglot
 import sqlglot.expressions as exp
 
 from . import AgentState
 from ..db import get_schema_tables_columns_async
+from ..schema_catalog import dynamic_catalog
 
 # DDL/DML statement types that are never allowed
 def _get_exp_type(name: str):
@@ -127,7 +129,15 @@ async def validate_sql_node(state: AgentState) -> AgentState:
 
     # ── 4 & 5. Table + column allowlist with fuzzy hints ─────────────────────
     try:
-        schema_map = await get_schema_tables_columns_async()
+        connection_id = state.get("connection_id")
+        if connection_id:
+            # BYODB: resolve allowlist from the user's engine
+            from ..engine_pool import engine_pool
+            engine = await engine_pool.get_engine(uuid.UUID(connection_id))
+            schema_map = await dynamic_catalog.get_tables_columns(engine)
+        else:
+            # Chinook fast-path
+            schema_map = await get_schema_tables_columns_async()
     except Exception as e:
         return {
             **state,

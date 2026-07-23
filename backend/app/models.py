@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Integer, String, Text, func
+    Boolean, DateTime, ForeignKey, Integer, SmallInteger, String, Text, func
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -41,6 +41,9 @@ class User(Base):
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
         "RefreshToken", back_populates="user", cascade="all, delete-orphan"
     )
+    connections: Mapped[list["UserConnection"]] = relationship(
+        "UserConnection", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class RefreshToken(Base):
@@ -62,6 +65,46 @@ class RefreshToken(Base):
     user: Mapped["User"] = relationship("User", back_populates="refresh_tokens")
 
 
+class UserConnection(Base):
+    """A user's saved external PostgreSQL database connection.
+
+    All sensitive fields (host, database, username, password) are stored
+    encrypted via Fernet (see app/crypto.py). The plaintext values are
+    never written to the database.
+    """
+    __tablename__ = "user_connections"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Encrypted credential fields
+    host_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    port: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=5432)
+    database_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    username_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    password_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    # Connection health
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="untested")
+    last_tested_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    user: Mapped["User"] = relationship("User", back_populates="connections")
+    conversations: Mapped[list["Conversation"]] = relationship(
+        "Conversation", back_populates="connection"
+    )
+
+
 class Conversation(Base):
     __tablename__ = "conversations"
 
@@ -70,6 +113,13 @@ class Conversation(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    # NULL = Chinook demo (existing behaviour); set to a UserConnection.id for BYODB
+    connection_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("user_connections.id", ondelete="SET NULL"),
+        nullable=True,
+        default=None,
     )
     title: Mapped[str] = mapped_column(Text, nullable=False, default="New Conversation")
     created_at: Mapped[datetime] = mapped_column(
@@ -80,6 +130,9 @@ class Conversation(Base):
     )
 
     user: Mapped["User"] = relationship("User", back_populates="conversations")
+    connection: Mapped[Optional["UserConnection"]] = relationship(
+        "UserConnection", back_populates="conversations"
+    )
     messages: Mapped[list["Message"]] = relationship(
         "Message", back_populates="conversation", cascade="all, delete-orphan",
         order_by="Message.created_at"

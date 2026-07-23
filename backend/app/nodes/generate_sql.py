@@ -10,7 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from . import AgentState
 from ..llm import get_llm
 
-SYSTEM_PROMPT = """You are an expert PostgreSQL query writer for the Chinook music store database.
+SYSTEM_PROMPT_TEMPLATE = """You are an expert PostgreSQL query writer for the {database_name} database.
 
 Rules you MUST follow:
 1. Generate ONLY a single SELECT statement — no INSERT, UPDATE, DELETE, DROP, CREATE, etc.
@@ -37,6 +37,10 @@ async def generate_sql_node(state: AgentState) -> AgentState:
     """Call the LLM to generate SQL from the question + schema."""
     llm = get_llm()
 
+    # Resolve datasource name for the system prompt
+    database_name = state.get("datasource_name") or "Chinook music store"
+    system_prompt = SYSTEM_PROMPT_TEMPLATE.format(database_name=database_name)
+
     # Build error context string if this is a retry
     error_context = ""
     if state.get("validation_error"):
@@ -57,7 +61,7 @@ async def generate_sql_node(state: AgentState) -> AgentState:
     )
 
     messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
+        SystemMessage(content=system_prompt),
         HumanMessage(content=user_msg),
     ]
 

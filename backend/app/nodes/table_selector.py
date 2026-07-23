@@ -1,32 +1,40 @@
 """
 nodes/table_selector.py
-Dynamic schema pruning node — replaces static schema_context.
+Dynamic schema pruning node — routes to Chinook or BYODB catalog.
 
-Instead of dumping the full Chinook DDL into every prompt, this node:
-  1. Analyses the user question via keyword matching + FK graph expansion
-  2. Selects only the 2-5 most relevant tables
-  3. Fetches a pruned schema string (DDL + 3 sample rows per table)
-  4. Records which tables were selected in state (used by generate_sql
-     for targeted SQL generation and by streaming for the reasoning log)
+Chinook path (connection_id=None):
+  Uses the existing keyword-based static catalog for speed.
 
-This demonstrates the production pattern for scaling to databases with
-100+ tables — a key differentiator vs. naive LLM wrappers.
+BYODB path (connection_id set):
+  Uses DynamicSchemaCatalog to introspect the user's database at runtime.
+  For ≤20 tables: includes full schema.
+  For >20 tables: asks the LLM to pick the relevant subset.
 """
+import uuid
+
 from . import AgentState
-from ..schema_catalog import get_pruned_schema_text
+from ..schema_catalog import get_pruned_schema_text, dynamic_catalog
 
 
 async def table_selector_node(state: AgentState) -> AgentState:
-    """
-    Prune the schema to only the tables relevant to the user's question.
-    Populates state['schema_text'] and state['selected_tables'].
-    """
+    """Prune the schema to only the tables relevant to the user's question."""
     node_path = list(state.get("node_path", []))
     node_path.append("table_selector")
 
     question = state.get("question", "")
+    connection_id = state.get("connection_id")
 
-    pruned_schema, selected_tables = await get_pruned_schema_text(question)
+    if connection_id:
+        # ── BYODB path ────────────────────────────────────────────────────────
+        from ..engine_pool import engine_pool
+
+        engine = await engine_pool.get_engine(uuid.UUID(connection_id))
+        pruned_schema, selected_tables = await dynamic_catalog.get_pruned_schema_text(
+            engine, question
+        )
+    else:
+        # ── Chinook fast-path ─────────────────────────────────────────────────
+        pruned_schema, selected_tables = await get_pruned_schema_text(question)
 
     return {
         **state,

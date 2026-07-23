@@ -294,3 +294,192 @@ def invalidate_cache() -> None:
     global _SCHEMA_STRUCT_CACHE, _SAMPLE_ROWS_CACHE
     _SCHEMA_STRUCT_CACHE = None
     _SAMPLE_ROWS_CACHE.clear()
+
+
+# ── BYODB: DynamicSchemaCatalog ───────────────────────────────────────────────
+# Introspects any PostgreSQL database at runtime.
+# The existing static Chinook catalog above is kept as a fast-path for
+# connection_id=None (Chinook demo mode).
+
+class DynamicSchemaCatalog:
+    """Per-engine schema introspection for BYODB databases.
+
+    Caches structure and sample rows per engine to avoid re-introspecting
+    on every question. Cache is keyed by the engine's pool URL string.
+
+    Strategy for table selection:
+      - If ≤ 20 tables: include full schema (no pruning needed)
+      - If > 20 tables: ask LLM to pick the relevant subset
+    """
+
+    # Cache: engine_url_str → (struct_dict, sample_rows_dict)
+    _cache: dict[str, tuple[dict, dict]] = {}
+
+    async def _load_struct(self, engine) -> dict[str, list[dict]]:
+        """Introspect information_schema and return {table: [col_meta]}."""
+        from sqlalchemy import text as sa_text
+
+        async with engine.connect() as conn:
+            tables_res = await conn.execute(sa_text(
+                "SELECT table_name FROM information_schema.tables "
+                "WHERE table_schema='public' AND table_type='BASE TABLE' ORDER BY table_name"
+            ))
+            tables = [r[0] for r in tables_res.fetchall()]
+
+            struct: dict[str, list[dict]] = {}
+            for table in tables:
+                cols_res = await conn.execute(sa_text(
+                    "SELECT column_name, data_type, is_nullable "
+                    "FROM information_schema.columns "
+                    "WHERE table_schema='public' AND table_name=:t ORDER BY ordinal_position"
+                ), {"t": table})
+
+                pk_res = await conn.execute(sa_text(
+                    "SELECT kcu.column_name FROM information_schema.table_constraints tc "
+                    "JOIN information_schema.key_column_usage kcu "
+                    "  ON tc.constraint_name=kcu.constraint_name AND tc.table_schema=kcu.table_schema "
+                    "WHERE tc.constraint_type='PRIMARY KEY' AND tc.table_schema='public' AND tc.table_name=:t"
+                ), {"t": table})
+                pks = {r[0] for r in pk_res.fetchall()}
+
+                fk_res = await conn.execute(sa_text(
+                    "SELECT kcu.column_name, ccu.table_name "
+                    "FROM information_schema.table_constraints AS tc "
+                    "JOIN information_schema.key_column_usage AS kcu "
+                    "  ON tc.constraint_name=kcu.constraint_name AND tc.table_schema=kcu.table_schema "
+                    "JOIN information_schema.constraint_column_usage AS ccu "
+                    "  ON ccu.constraint_name=tc.constraint_name AND ccu.table_schema=tc.table_schema "
+                    "WHERE tc.constraint_type='FOREIGN KEY' AND tc.table_schema='public' AND tc.table_name=:t"
+                ), {"t": table})
+                fks = {r[0]: r[1] for r in fk_res.fetchall()}
+
+                struct[table] = [
+                    {
+                        "name": col_name,
+                        "type": data_type.upper(),
+                        "nullable": is_nullable == "YES",
+                        "pk": col_name in pks,
+                        "fk": fks.get(col_name),
+                    }
+                    for col_name, data_type, is_nullable in cols_res.fetchall()
+                ]
+
+        return struct
+
+    async def _load_sample(self, engine, table: str, n: int = 3) -> list[dict]:
+        """Fetch n sample rows from a table."""
+        from sqlalchemy import text as sa_text
+        try:
+            async with engine.connect() as conn:
+                res = await conn.execute(sa_text(f'SELECT * FROM "{table}" LIMIT :n'), {"n": n})
+                keys = list(res.keys())
+                return [dict(zip(keys, row)) for row in res.fetchall()]
+        except Exception:
+            return []
+
+    async def _get_cached(self, engine) -> tuple[dict, dict]:
+        """Return (struct, samples) from cache, or load if missing."""
+        key = str(engine.url)
+        if key not in self._cache:
+            struct = await self._load_struct(engine)
+            samples = {}
+            for table in struct:
+                samples[table] = await self._load_sample(engine, table)
+            self._cache[key] = (struct, samples)
+        return self._cache[key]
+
+    def invalidate(self, engine) -> None:
+        """Clear the cache for a specific engine (call when connection is deleted)."""
+        self._cache.pop(str(engine.url), None)
+
+    async def get_tables_columns(self, engine) -> dict[str, list[str]]:
+        """Return {table: [column_names]} for the SQL validator allowlist."""
+        struct, _ = await self._get_cached(engine)
+        return {
+            table: [c["name"].lower() for c in cols]
+            for table, cols in struct.items()
+        }
+
+    async def get_pruned_schema_text(
+        self, engine, question: str
+    ) -> tuple[str, list[str]]:
+        """Build a focused schema text for any PostgreSQL database.
+
+        For small schemas (≤20 tables): include everything.
+        For large schemas (>20 tables): use an LLM call to pick relevant tables.
+
+        Returns (schema_text, selected_table_names).
+        """
+        struct, samples = await self._get_cached(engine)
+        all_tables = list(struct.keys())
+
+        if len(all_tables) <= 20:
+            selected = set(all_tables)
+        else:
+            selected = await self._llm_select_tables(question, struct)
+
+        db_name = str(engine.url).split("/")[-1].split("?")[0]
+        parts = [f"-- {db_name} Database Schema (pruned for: {question[:80]})\n"]
+        table_names: list[str] = []
+
+        for table in sorted(selected):
+            cols = struct.get(table, [])
+            sample_rows = samples.get(table, [])
+
+            table_names.append(table)
+            parts.append(f"CREATE TABLE {table} (")
+            col_lines = []
+            for col in cols:
+                pk = " PRIMARY KEY" if col["pk"] else ""
+                fk = f"  -- FK -> {col['fk']}" if col["fk"] else ""
+                nullable = "" if col["nullable"] else " NOT NULL"
+                col_lines.append(f"  {col['name']} {col['type']}{nullable}{pk}{fk}")
+            parts.append(",\n".join(col_lines))
+            parts.append(");")
+
+            if sample_rows:
+                keys = list(sample_rows[0].keys())
+                parts.append(f"-- Sample rows ({table}):")
+                parts.append("-- " + " | ".join(keys))
+                for row in sample_rows:
+                    vals = " | ".join(str(v)[:30] for v in row.values())
+                    parts.append(f"-- {vals}")
+
+            parts.append("")
+
+        return "\n".join(parts), table_names
+
+    async def _llm_select_tables(
+        self, question: str, struct: dict[str, list[dict]]
+    ) -> set[str]:
+        """Ask the LLM to choose relevant tables from a large schema."""
+        from .llm import get_llm
+        from langchain_core.messages import HumanMessage, SystemMessage
+
+        # Build a compact table listing for the LLM
+        table_listing = "\n".join(
+            f"- {t}: {', '.join(c['name'] for c in cols[:8])}"
+            for t, cols in struct.items()
+        )
+
+        messages = [
+            SystemMessage(content=(
+                "You are a database expert. Given a list of tables and a user question, "
+                "output ONLY the names of the tables needed to answer the question, "
+                "one per line. No explanation, no punctuation, only table names."
+            )),
+            HumanMessage(content=(
+                f"Tables:\n{table_listing}\n\nQuestion: {question}\n\nRelevant tables:"
+            )),
+        ]
+        llm = get_llm()
+        response = await llm.ainvoke(messages)
+        selected_raw = response.content.strip().splitlines()
+        valid = {t.strip().lower() for t in selected_raw if t.strip()}
+        # Keep only names that actually exist
+        return {t for t in struct.keys() if t.lower() in valid} or set(struct.keys())
+
+
+# Module-level singleton for BYODB schema introspection
+dynamic_catalog = DynamicSchemaCatalog()
+
