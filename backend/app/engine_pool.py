@@ -25,7 +25,6 @@ Usage:
 import asyncio
 import time
 import uuid
-from typing import Optional
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine

@@ -17,7 +17,7 @@ import asyncio
 import uuid
 
 from . import AgentState
-from ..db import execute_chinook_query, get_appdb_session_factory
+from ..db import execute_chinook_query
 from ..config import get_settings
 
 

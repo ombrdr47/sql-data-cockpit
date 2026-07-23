@@ -1,11 +1,7 @@
 import pytest
-import uuid
-from datetime import datetime, timezone
-from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi import HTTPException
 from app.crypto import encrypt_field, decrypt_field, get_fernet
 from app.routers.connections_router import _assert_not_internal, ConnectionCreate, _mask
-from app.models import UserConnection
 
 
 class TestCrypto:
