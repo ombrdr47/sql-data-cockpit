@@ -1,236 +1,214 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ── CSS custom properties used by BYODB modals / pickers ─────────────────── */
-/* These bridge inline-style components with the Tailwind surface palette.    */
+/* ── CSS custom properties ─────────────────────────────────────────────────── */
 :root {
-  --text-primary:   #e2e8f0;  /* slate-200 — main readable text */
-  --text-secondary: #94a3b8;  /* slate-400 — muted labels       */
-  --bg-secondary:   #0f172a;  /* surface-950 / slate-900        */
-  --border:         rgba(51, 65, 85, 0.8); /* slate-700 at 80%  */
+  --accent:        #6366f1;
+  --accent-light:  #818cf8;
+  --bg-app:        #111214;
+  --bg-marketing:  #FAFAF9;
+  --text-primary:  #f1f5f9;
+  --text-muted:    #94a3b8;
+  --border:        rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
 }
 
 @layer base {
-  * {
-    box-sizing: border-box;
-  }
-  
-  html {
-    scroll-behavior: smooth;
-  }
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
 
   body {
-    @apply bg-surface-950 text-slate-100 font-sans antialiased selection:bg-brand-500 selection:text-surface-950;
-    font-feature-settings: 'cv11', 'ss01', 'tnum';
+    @apply bg-surface-950 text-slate-100 font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
   }
 
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    @apply bg-surface-950;
-  }
-
-  ::-webkit-scrollbar-thumb {
-    @apply bg-surface-800 rounded-sm border border-slate-700;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-brand-600;
-  }
+  ::-webkit-scrollbar        { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track  { @apply bg-surface-950; }
+  ::-webkit-scrollbar-thumb  { @apply bg-surface-800 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 }
 
 @layer components {
-  /* ── Cyber-Industrial Panels ─────────────────────────────────── */
-  .glass {
-    @apply bg-surface-900/90 border border-slate-800 rounded-md shadow-inner transition-all duration-200;
+  /* ── Panels ─────────────────────────────────────────────────────────────── */
+  .card {
+    @apply bg-surface-900 border border-white/[0.08] rounded-xl shadow-sm;
   }
 
-  .glass-dark {
-    @apply bg-surface-900/95 border border-slate-800/80 rounded-md shadow-2xl;
+  .card-hover {
+    @apply card transition-all duration-200 hover:border-white/[0.16] hover:shadow-md;
   }
 
-  .terminal-panel {
-    @apply bg-surface-900/90 border border-slate-800 rounded-md relative overflow-hidden;
-  }
-
-  /* ── Buttons ─────────────────────────────────────────────────── */
+  /* ── Buttons ──────────────────────────────────────────────────────────── */
   .btn-primary {
-    @apply bg-brand-500 hover:bg-brand-400 text-surface-950 font-mono font-bold px-4 py-2 rounded-md uppercase tracking-wider
-           transition-all duration-150 ease-out border border-brand-400 shadow-[0_0_15px_rgba(255,107,0,0.25)]
-           focus:outline-none focus:ring-2 focus:ring-brand-400 focus:ring-offset-2 focus:ring-offset-surface-950
-           disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none
-           active:scale-[0.98] active:translate-y-0.5;
+    @apply bg-accent-500 hover:bg-accent-600 text-white font-medium px-5 py-2.5 rounded-lg
+           transition-all duration-150 shadow-sm
+           focus:outline-none focus:ring-2 focus:ring-accent-400 focus:ring-offset-2 focus:ring-offset-surface-950
+           disabled:opacity-40 disabled:cursor-not-allowed
+           active:scale-[0.98];
+  }
+
+  .btn-secondary {
+    @apply bg-white/[0.06] hover:bg-white/[0.10] text-slate-200 hover:text-white
+           font-medium px-5 py-2.5 rounded-lg border border-white/[0.10] hover:border-white/[0.18]
+           transition-all duration-150
+           focus:outline-none focus:ring-2 focus:ring-accent-400;
   }
 
   .btn-ghost {
-    @apply bg-surface-900/60 hover:bg-surface-800 text-slate-300 hover:text-white font-mono text-xs px-3 py-2 rounded-md
-           border border-slate-800 hover:border-slate-700 transition-all duration-150
-           focus:outline-none focus:ring-1 focus:ring-brand-500;
+    @apply text-slate-400 hover:text-slate-200 hover:bg-white/[0.06]
+           px-3 py-2 rounded-lg transition-all duration-150
+           focus:outline-none focus:ring-1 focus:ring-accent-500;
   }
 
   .btn-danger {
-    @apply bg-red-950/40 hover:bg-red-900/60 text-red-400 hover:text-red-300 font-mono text-xs px-3 py-2 rounded-md
-           transition-all duration-150 border border-red-800/50;
-  }
-
-  /* ── Input ───────────────────────────────────────────────────── */
-  .input-field {
-    @apply w-full bg-surface-900 border border-slate-800 text-slate-100 placeholder-slate-600 font-mono text-sm
-           rounded-md px-4 py-3
-           focus:outline-none focus:ring-1 focus:ring-brand-500 focus:border-brand-500
+    @apply bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300
+           font-medium px-4 py-2.5 rounded-lg border border-red-500/20
            transition-all duration-150;
   }
 
-  /* ── Code / SQL ──────────────────────────────────────────────── */
-  .code-block {
-    @apply font-mono text-xs bg-surface-950 border border-slate-800/80 rounded-md p-4
-           overflow-x-auto text-emerald-400 leading-relaxed shadow-inner;
+  /* ── Input ──────────────────────────────────────────────────────────────── */
+  .input-field {
+    @apply w-full bg-surface-900 border border-white/[0.10] text-slate-100
+           placeholder-slate-500 text-sm rounded-lg px-4 py-3
+           focus:outline-none focus:ring-2 focus:ring-accent-500/60 focus:border-accent-500/60
+           transition-all duration-150;
   }
 
-  /* ── Chat message bubble ──────────────────────────────────────── */
+  /* ── Code / SQL ─────────────────────────────────────────────────────────── */
+  .code-block {
+    @apply font-mono text-sm bg-surface-950 border border-white/[0.06] rounded-lg p-4
+           overflow-x-auto text-emerald-400 leading-relaxed;
+  }
+
+  /* ── Chat messages ─────────────────────────────────────────────────────── */
   .message-user {
-    @apply bg-surface-850 border border-slate-800 rounded-md px-4 py-3.5 max-w-prose font-sans text-sm text-slate-100 shadow-sm border-l-2 border-l-brand-500;
+    @apply bg-accent-500/10 border border-accent-500/20 rounded-xl px-4 py-3.5
+           max-w-prose text-sm text-slate-100 shadow-sm;
   }
 
   .message-assistant {
-    @apply bg-surface-900/80 border border-slate-800 rounded-md px-5 py-4 w-full max-w-4xl shadow-md border-l-2 border-l-emerald-500;
+    @apply bg-surface-900/70 border border-white/[0.08] rounded-xl px-5 py-4
+           w-full max-w-4xl;
   }
 
-  /* ── Typing indicator ────────────────────────────────────────── */
-  .typing-dot {
-    @apply inline-block w-2 h-2 bg-brand-500 rounded-sm animate-ping;
-  }
-
-  /* ── Sidebar item ────────────────────────────────────────────── */
+  /* ── Sidebar ───────────────────────────────────────────────────────────── */
   .sidebar-item {
-    @apply flex items-center justify-between px-3 py-2.5 rounded-md text-xs font-mono text-slate-400
-           hover:bg-surface-850 hover:text-slate-200 border border-transparent hover:border-slate-800/80 cursor-pointer
+    @apply flex items-center justify-between px-3 py-2 rounded-lg text-sm
+           text-slate-400 hover:bg-white/[0.05] hover:text-slate-200 cursor-pointer
            transition-all duration-150;
   }
 
   .sidebar-item-active {
-    @apply bg-brand-950/30 text-brand-400 border border-brand-500/30 shadow-[inset_2px_0_0_#ff6b00];
+    @apply bg-accent-500/15 text-accent-300 border-l-2 border-accent-400 pl-[10px];
+  }
+
+  /* ── Badge / pill ──────────────────────────────────────────────────────── */
+  .badge {
+    @apply inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1
+           rounded-full border;
+  }
+
+  .badge-green {
+    @apply badge bg-emerald-500/10 border-emerald-500/20 text-emerald-400;
+  }
+
+  .badge-violet {
+    @apply badge bg-accent-500/10 border-accent-500/20 text-accent-300;
+  }
+
+  .badge-neutral {
+    @apply badge bg-white/[0.06] border-white/[0.10] text-slate-400;
   }
 }
 
 @layer utilities {
+  /* ── Gradient text ─────────────────────────────────────────────────────── */
   .text-gradient {
-    @apply bg-gradient-to-r from-brand-400 via-amber-400 to-orange-500 bg-clip-text text-transparent font-bold tracking-tight;
+    @apply bg-gradient-to-r from-accent-300 via-accent-400 to-violet-400
+           bg-clip-text text-transparent font-bold tracking-tight;
   }
 
-  .glow-brand {
-    box-shadow: 0 0 25px rgba(255, 107, 0, 0.2);
-  }
-
-  .glow-emerald {
-    box-shadow: 0 0 25px rgba(16, 185, 129, 0.2);
-  }
-
-  /* Markdown prose styles for chat messages */
-  .prose-chat {
-    @apply text-slate-200 leading-relaxed font-sans text-sm;
-  }
+  /* ── Markdown prose (chat messages) ───────────────────────────────────── */
+  .prose-chat { @apply text-slate-200 leading-relaxed text-sm; }
 
   .prose-chat h1, .prose-chat h2, .prose-chat h3 {
-    @apply text-white font-mono font-bold mt-4 mb-2 tracking-tight;
+    @apply text-white font-semibold mt-4 mb-2;
   }
-
-  .prose-chat p {
-    @apply mb-3;
-  }
-
-  .prose-chat ul, .prose-chat ol {
-    @apply mb-3 pl-4;
-  }
-
-  .prose-chat li {
-    @apply mb-1;
-  }
-
-  .prose-chat ul li {
-    @apply list-disc;
-  }
-
-  .prose-chat ol li {
-    @apply list-decimal;
-  }
+  .prose-chat p   { @apply mb-3; }
+  .prose-chat ul, .prose-chat ol { @apply mb-3 pl-5; }
+  .prose-chat li  { @apply mb-1; }
+  .prose-chat ul li { @apply list-disc; }
+  .prose-chat ol li { @apply list-decimal; }
 
   .prose-chat table {
-    @apply w-full border-collapse text-xs mb-4 font-mono;
+    @apply w-full border-collapse text-xs mb-4;
   }
-
   .prose-chat th {
-    @apply bg-surface-850 text-brand-400 font-semibold px-3 py-2 text-left border border-slate-800 uppercase tracking-wider;
+    @apply bg-surface-850 text-accent-300 font-semibold px-3 py-2 text-left
+           border border-white/[0.08] tracking-wide;
   }
-
   .prose-chat td {
-    @apply px-3 py-2 border border-slate-800/60 text-slate-300;
+    @apply px-3 py-2 border border-white/[0.06] text-slate-300 font-mono;
   }
-
-  .prose-chat tr:nth-child(even) td {
-    @apply bg-surface-900/50;
-  }
+  .prose-chat tr:nth-child(even) td { @apply bg-surface-900/40; }
 
   .prose-chat code {
-    @apply font-mono text-brand-300 bg-surface-950 px-1.5 py-0.5 rounded text-xs border border-slate-800;
+    @apply font-mono text-accent-300 bg-surface-950 px-1.5 py-0.5 rounded text-xs;
   }
-
   .prose-chat pre {
-    @apply bg-surface-950 border border-slate-800 rounded-md p-4 mb-4 overflow-x-auto;
+    @apply bg-surface-950 border border-white/[0.06] rounded-lg p-4 mb-4 overflow-x-auto;
   }
-
-  .prose-chat pre code {
-    @apply bg-transparent p-0 border-none text-emerald-400;
-  }
-
-  .prose-chat strong {
-    @apply text-white font-semibold;
-  }
-
+  .prose-chat pre code { @apply bg-transparent p-0 text-emerald-400; }
+  .prose-chat strong   { @apply text-white font-semibold; }
   .prose-chat blockquote {
-    @apply border-l-2 border-brand-500 pl-4 italic text-slate-400 bg-surface-900/30 py-2 rounded-r;
+    @apply border-l-2 border-accent-500 pl-4 italic text-slate-400 bg-surface-900/30 py-2 rounded-r;
   }
 
-  /* ── DataTable ───────────────────────────────────────────────────── */
+  /* ── DataTable ─────────────────────────────────────────────────────────── */
   .data-table-header {
-    @apply px-3 py-2.5 text-left text-xs font-mono font-bold text-slate-300
-           bg-surface-850 border-b border-slate-800 whitespace-nowrap uppercase tracking-wider
-           select-none transition-colors duration-150;
+    @apply px-3 py-2.5 text-left text-xs font-medium text-slate-300
+           bg-surface-850 border-b border-white/[0.08] whitespace-nowrap
+           select-none transition-colors duration-150 uppercase tracking-wide;
   }
-
   .data-table-header.sortable {
-    @apply cursor-pointer hover:text-brand-400 hover:bg-surface-800;
+    @apply cursor-pointer hover:text-accent-300 hover:bg-surface-800;
   }
-
   .data-table-cell {
-    @apply px-3 py-2 text-xs font-mono text-slate-300 max-w-xs border-r border-slate-800/40 last:border-r-0;
+    @apply px-3 py-2 text-xs font-mono text-slate-300
+           max-w-xs border-r border-white/[0.05] last:border-r-0;
   }
-
   .data-table-row-even {
-    @apply bg-surface-950/40 hover:bg-surface-850/60 transition-colors;
+    @apply bg-surface-950/30 hover:bg-surface-850/50 transition-colors;
   }
-
   .data-table-row-odd {
-    @apply bg-surface-900/60 hover:bg-surface-850/80 transition-colors;
+    @apply bg-surface-900/50 hover:bg-surface-850/70 transition-colors;
   }
 
-  /* ── Reasoning timeline ──────────────────────────────────────────── */
-  .reasoning-dot {
-    @apply absolute left-[-5px] top-1.5 w-2 h-2 rounded-sm bg-brand-500 flex-shrink-0;
-  }
-
+  /* ── Agent reasoning timeline ──────────────────────────────────────────── */
   .reasoning-step {
-    @apply relative flex items-start gap-3 pb-3 pl-4 border-l border-slate-800 font-mono text-xs text-slate-300;
+    @apply relative flex items-start gap-3 pb-3 pl-5 border-l border-white/[0.08]
+           text-xs text-slate-400;
+  }
+  .reasoning-dot {
+    @apply absolute left-[-4px] top-1.5 w-2 h-2 rounded-full bg-accent-400 flex-shrink-0;
   }
 
-  /* ── Feature pills (empty state) ─────────────────────────────────── */
+  /* ── Feature pills (empty state) ───────────────────────────────────────── */
   .feature-pill {
-    @apply bg-surface-900 text-slate-300 text-xs font-mono px-3 py-1 rounded border border-slate-800 flex items-center gap-1.5;
+    @apply bg-surface-900 text-slate-300 text-xs px-3 py-1.5 rounded-lg
+           border border-white/[0.08] flex items-center gap-2;
   }
+
+  /* ── Scroll fade-up animation ──────────────────────────────────────────── */
+  .animate-in {
+    animation: fadeUp 0.5s ease-out forwards;
+    opacity: 0;
+  }
+  .animate-in-delay-1 { animation-delay: 0.1s; }
+  .animate-in-delay-2 { animation-delay: 0.2s; }
+  .animate-in-delay-3 { animation-delay: 0.3s; }
 }

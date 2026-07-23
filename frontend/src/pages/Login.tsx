@@ -1,31 +1,29 @@
 /**
  * pages/Login.tsx
- * Obsidian Cyber-Terminal Authentication
- * Authorized security clearance checkpoint for the Chinook SQL Data Cockpit.
+ * Clean, plain authentication form per UI.md.
+ * All logic (handleSubmit, login, fillDemo, navigate) preserved verbatim.
  */
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { useAuth } from '../lib/auth'
 
 export default function Login() {
-  const [email, setEmail] = useState('')
+  const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError]       = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const { login } = useAuth()
+  const { login }    = useAuth()
   const navigate = useNavigate()
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
     setIsLoading(true)
-
     try {
       await login(email, password)
       navigate('/chat')
     } catch (err: any) {
-      setError(err.message || 'Authentication failed. Please verify credentials.')
+      setError(err.message || 'Authentication failed. Please check your credentials.')
     } finally {
       setIsLoading(false)
     }
@@ -37,164 +35,121 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-950 text-slate-100 flex flex-col lg:flex-row relative selection:bg-brand-500 selection:text-surface-950 font-sans">
-      {/* ── Background Technical Spec Lines ──────────────────────────────────── */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1c1f26_1px,transparent_1px),linear-gradient(to_bottom,#1c1f26_1px,transparent_1px)] bg-[size:32px_32px] opacity-30" />
-        <div className="absolute top-[20%] left-[10%] w-[400px] h-[400px] bg-brand-600/5 rounded-full blur-[140px]" />
-      </div>
+    <div className="min-h-screen bg-neutral-50 flex items-center justify-center px-4">
+      <div className="w-full max-w-md">
 
-      {/* ── Left Column: System Telemetry Showcase ───────────────────────────── */}
-      <div className="lg:w-1/2 p-8 lg:p-16 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-800 relative z-10 font-mono">
-        <div>
-          <Link to="/" className="inline-flex items-center gap-3 group mb-12">
-            <div className="w-8 h-8 bg-brand-500 rounded flex items-center justify-center text-surface-950 font-bold shadow-[0_0_12px_rgba(255,107,0,0.4)]">
-              SQL
-            </div>
-            <span className="text-white font-bold tracking-tight uppercase group-hover:text-brand-400 transition-colors">
-              Chinook <span className="text-brand-500">// DATA COCKPIT v2</span>
-            </span>
-          </Link>
+        {/* Logo */}
+        <Link to="/" className="flex items-center gap-2.5 mb-8 justify-center">
+          <div className="w-8 h-8 bg-accent-500 rounded-lg flex items-center justify-center">
+            <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
+              <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
+          </div>
+          <span className="font-semibold text-neutral-900 text-lg tracking-tight">SQL Cockpit</span>
+        </Link>
 
-          <div className="max-w-md">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-surface-900 border border-slate-800 text-emerald-400 text-[11px] mb-6 uppercase tracking-wider">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>SEC_CLEARANCE: AUTHORIZED_TERMINAL</span>
-            </div>
+        {/* Card */}
+        <div className="bg-white border border-neutral-200 rounded-2xl shadow-sm p-8">
 
-            <h1 className="text-3xl lg:text-5xl font-bold text-white tracking-tight mb-6 font-sans">
-              Precision Data Cockpit Access.
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-neutral-900 tracking-tight mb-1">
+              Sign in
             </h1>
-
-            <p className="text-slate-400 text-xs leading-relaxed mb-10 font-sans">
-              Authenticate to connect with the autonomous SQL engineering console. Experience token-pruned schema ingestion, AST syntax verification, and process-isolated sandbox analytics.
+            <p className="text-sm text-neutral-500">
+              Welcome back. Enter your credentials to continue.
             </p>
+          </div>
 
-            {/* Diagnostic checklist */}
-            <div className="space-y-3 bg-surface-900/60 p-5 rounded border border-slate-800 text-xs mb-8">
-              <div className="text-slate-500 text-[10px] uppercase tracking-wider mb-2">[SYS_INTEGRITY_CHECK]</div>
-              <div className="flex items-center justify-between text-slate-300">
-                <span>[01] TLS 1.3 Transport Encryption</span>
-                <span className="text-emerald-400 font-bold">VERIFIED_OK</span>
-              </div>
-              <div className="flex items-center justify-between text-slate-300">
-                <span>[02] Process Sandbox Container</span>
-                <span className="text-emerald-400 font-bold">ISOLATED_OK</span>
-              </div>
-              <div className="flex items-center justify-between text-slate-300">
-                <span>[03] AST Compiler Guard</span>
-                <span className="text-emerald-400 font-bold">ACTIVE_OK</span>
-              </div>
+          {/* Demo shortcut */}
+          <button
+            type="button"
+            onClick={fillDemo}
+            id="fill-demo-btn"
+            className="w-full mb-6 flex items-center gap-3 px-4 py-3 bg-accent-50 border
+                       border-accent-200 rounded-xl text-sm text-accent-700 hover:bg-accent-100
+                       transition-colors text-left group"
+          >
+            <span className="text-lg">⚡</span>
+            <div>
+              <span className="font-medium block">Try the demo</span>
+              <span className="text-xs text-accent-500">Fill in demo@chinook.dev / demo1234</span>
             </div>
-          </div>
-        </div>
-
-        <div className="text-slate-500 text-[11px] flex items-center justify-between pt-6 border-t border-slate-800/60">
-          <span>TARGET_DB: chinook_music_store.postgresql</span>
-          <span>v2.0.4-prod</span>
-        </div>
-      </div>
-
-      {/* ── Right Column: Authentication Terminal ────────────────────────────── */}
-      <div className="lg:w-1/2 flex items-center justify-center p-6 lg:p-16 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3 }}
-          className="w-full max-w-md terminal-panel p-8 lg:p-10 border-slate-800 shadow-2xl relative"
-        >
-          {/* Corner crosshairs */}
-          <div className="absolute top-0 left-0 w-2.5 h-2.5 border-t-2 border-l-2 border-brand-500" />
-          <div className="absolute top-0 right-0 w-2.5 h-2.5 border-t-2 border-r-2 border-brand-500" />
-          <div className="absolute bottom-0 left-0 w-2.5 h-2.5 border-b-2 border-l-2 border-brand-500" />
-          <div className="absolute bottom-0 right-0 w-2.5 h-2.5 border-b-2 border-r-2 border-brand-500" />
-
-          <div className="mb-8 font-mono">
-            <span className="text-[10px] text-brand-500 font-bold uppercase tracking-widest block mb-1">// AUTHENTICATION_REQUIRED</span>
-            <h2 className="text-2xl font-bold text-white tracking-tight font-sans">Connect to Workspace</h2>
-            <p className="text-slate-400 text-xs mt-1 font-sans">Enter operator credentials to unlock the SQL terminal.</p>
-          </div>
-
-          {/* Instant Demo Authorization Badge */}
-          <div className="mb-8 bg-brand-950/20 border border-brand-500/30 rounded p-4 flex items-center justify-between font-mono text-xs">
-            <div className="flex items-center gap-2.5">
-              <span className="text-brand-400 text-base">⚡</span>
-              <div>
-                <span className="text-slate-200 font-bold block text-xs">Sandbox Demo Access</span>
-                <span className="text-slate-400 text-[11px]">Instant pre-configured clearance</span>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={fillDemo}
-              className="bg-brand-500 hover:bg-brand-400 text-surface-950 font-bold px-3 py-1.5 rounded text-[11px] uppercase tracking-wider transition-all shadow-[0_0_10px_rgba(255,107,0,0.3)] active:scale-95"
-            >
-              [FILL_DEMO]
-            </button>
-          </div>
+            <span className="ml-auto text-accent-400 group-hover:translate-x-0.5 transition-transform">→</span>
+          </button>
 
           {error && (
-            <div className="mb-6 bg-red-950/40 border border-red-800/80 text-red-300 p-3 rounded text-xs font-mono flex items-center gap-2">
-              <span className="text-red-400 font-bold">[ERR]</span>
-              <span>{error}</span>
+            <div className="mb-5 px-4 py-3 bg-red-50 border border-red-200 rounded-xl
+                            text-sm text-red-600">
+              {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-5 font-mono text-xs">
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-slate-300 uppercase tracking-wider mb-2">
-                [01_EMAIL_ADDRESS]
+              <label className="block text-sm font-medium text-neutral-700 mb-1.5">
+                Email
               </label>
               <input
+                id="email-input"
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="operator@chinook.dev"
-                className="input-field"
+                placeholder="you@example.com"
+                autoComplete="email"
+                className="w-full border border-neutral-300 rounded-xl px-4 py-3 text-sm
+                           text-neutral-900 placeholder-neutral-400 bg-white
+                           focus:outline-none focus:ring-2 focus:ring-accent-500/40 focus:border-accent-400
+                           transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-slate-300 uppercase tracking-wider mb-2">
-                [02_PASSWORD_KEY]
+              <label className="block text-sm font-medium text-neutral-700 mb-1.5">
+                Password
               </label>
               <input
+                id="password-input"
                 type="password"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="input-field"
+                placeholder="••••••••"
+                autoComplete="current-password"
+                className="w-full border border-neutral-300 rounded-xl px-4 py-3 text-sm
+                           text-neutral-900 placeholder-neutral-400 bg-white
+                           focus:outline-none focus:ring-2 focus:ring-accent-500/40 focus:border-accent-400
+                           transition-all"
               />
             </div>
 
             <button
+              id="login-submit-btn"
               type="submit"
               disabled={isLoading}
-              className="btn-primary w-full py-3.5 text-xs font-bold uppercase tracking-widest mt-2 flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20"
+              className="w-full bg-accent-500 hover:bg-accent-600 text-white font-semibold
+                         py-3 rounded-xl transition-all duration-150 flex items-center
+                         justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed
+                         shadow-sm shadow-accent-500/20 active:scale-[0.98] mt-2"
             >
               {isLoading ? (
                 <>
-                  <span className="w-4 h-4 border-2 border-surface-950 border-t-transparent rounded-full animate-spin" />
-                  <span>[AUTHORIZING_SESSION...]</span>
+                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Signing in…</span>
                 </>
               ) : (
-                <>
-                  <span>[AUTHORIZE_COCKPIT_ACCESS]</span>
-                  <span>→</span>
-                </>
+                'Sign in'
               )}
             </button>
           </form>
 
-          <div className="mt-8 pt-6 border-t border-slate-800/80 text-center font-mono text-xs text-slate-400">
-            <span>New Operator Clearance? </span>
-            <Link to="/signup" className="text-brand-400 hover:text-brand-300 font-bold underline decoration-slate-800 underline-offset-4">
-              [REGISTER_TERMINAL]
+          <p className="mt-6 text-center text-sm text-neutral-500">
+            Don't have an account?{' '}
+            <Link to="/signup" className="text-accent-600 hover:text-accent-700 font-medium">
+              Sign up
             </Link>
-          </div>
-        </motion.div>
+          </p>
+        </div>
       </div>
     </div>
   )
