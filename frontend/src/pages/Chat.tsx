@@ -439,7 +439,7 @@ export default function Chat() {
   }
 
   return (
-    <div className="flex h-screen bg-surface-950 overflow-hidden">
+    <div className="flex h-dvh bg-surface-950 overflow-hidden">
       <Sidebar
         activeConversationId={activeConversationId}
         onSelectConversation={handleSelectConversation}
@@ -450,13 +450,17 @@ export default function Chat() {
 
       {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar */}
-        <header className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06]
-                           bg-surface-950 flex-shrink-0">
-          <div className="flex items-center gap-3">
+        {/* Top bar — glassmorphic, works on all viewports */}
+        <header className="flex items-center justify-between px-4 sm:px-5 py-3
+                           border-b border-white/[0.06] flex-shrink-0"
+                style={{ background: 'rgba(13,15,20,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
+          <div className="flex items-center gap-3 min-w-0">
+            {/* Hamburger — visible on mobile, hidden on md+ */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="md:hidden btn-ghost p-1.5"
+              className="md:hidden flex-shrink-0 w-10 h-10 flex items-center justify-center
+                         rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.08]
+                         transition-all duration-150 active:scale-90"
               aria-label="Open sidebar"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -464,16 +468,21 @@ export default function Chat() {
               </svg>
             </button>
 
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-slate-500">Session</span>
-              <span className="text-slate-300 font-medium font-mono text-xs">
-                {activeConversationId ? activeConversationId.slice(0, 8) : 'new'}
+            {/* Breadcrumb */}
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-6 h-6 rounded-md bg-gradient-accent hidden sm:flex items-center justify-center flex-shrink-0">
+                <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                  <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <span className="text-slate-300 font-medium text-sm truncate max-w-[140px] sm:max-w-xs">
+                {activeConversationId ? `Chat · ${activeConversationId.slice(0, 8)}` : 'New chat'}
               </span>
             </div>
           </div>
 
           {/* Status indicator */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-shrink-0">
             <AnimatePresence mode="wait">
               {isLoading ? (
                 <motion.div
@@ -481,10 +490,12 @@ export default function Chat() {
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.9 }}
-                  className="flex items-center gap-2 text-xs text-slate-400"
+                  className="flex items-center gap-2 text-xs text-accent-300
+                             bg-accent-500/10 border border-accent-500/20
+                             px-3 py-1.5 rounded-full"
                 >
-                  <span className="w-1.5 h-1.5 bg-accent-400 rounded-full animate-pulse" />
-                  Working…
+                  <span className="w-1.5 h-1.5 bg-accent-400 rounded-full animate-pulse flex-shrink-0" />
+                  <span className="hidden xs:inline">Working…</span>
                 </motion.div>
               ) : (
                 <motion.div
@@ -495,63 +506,70 @@ export default function Chat() {
                   className="flex items-center gap-1.5 text-xs text-slate-500"
                 >
                   <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-                  Ready
+                  <span className="hidden sm:inline">Ready</span>
                 </motion.div>
               )}
             </AnimatePresence>
           </div>
         </header>
 
-        {/* Messages */}
-        <main className="flex-1 overflow-y-auto px-5 py-6 space-y-2">
+        {/* Messages — scrollable, full height */}
+        <main className="flex-1 overflow-y-auto overscroll-contain"
+              style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="max-w-3xl mx-auto px-4 sm:px-5 py-5 sm:py-6 space-y-2">
+
           {messages.length === 0 && !isLoading && (
             <motion.div
-              initial={{ opacity: 0, y: 16 }}
+              initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center justify-center h-full max-w-3xl mx-auto py-8"
+              transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+              className="pt-4 sm:pt-8"
             >
-              {/* Empty state */}
-              <div className="w-full card p-8 md:p-10">
-                <div className="flex items-center gap-3 mb-6">
-                  <div className="w-9 h-9 bg-accent-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <svg width="18" height="18" viewBox="0 0 14 14" fill="none">
-                      <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-semibold text-white">SQL Cockpit</h2>
-                    <p className="text-xs text-slate-500">Powered by LangGraph · Groq</p>
-                  </div>
+              {/* Greeting */}
+              <div className="text-center mb-8 sm:mb-10">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-accent flex items-center justify-center
+                                mx-auto mb-4 shadow-glow-accent animate-float">
+                  <svg width="22" height="22" viewBox="0 0 14 14" fill="none">
+                    <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+                  </svg>
                 </div>
-
-                <p className="text-slate-400 text-sm mb-8 leading-relaxed max-w-xl">
-                  Ask a question about your data in plain English. The agent will select the relevant
-                  tables, generate and validate SQL, then return a table or chart.
+                <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">How can I help?</h2>
+                <p className="text-sm text-slate-400 max-w-sm mx-auto leading-relaxed">
+                  Ask anything about your data. I'll select the right tables, write the SQL,
+                  validate it, and return results.
                 </p>
+              </div>
 
-                <p className="text-xs text-slate-500 mb-3 font-medium">Try a sample question</p>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                  {SUGGESTIONS.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => sendMessage(s.prompt)}
-                      disabled={isLoading}
-                      className="bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08]
-                                 hover:border-white/[0.16] p-3.5 rounded-xl text-left transition-all
-                                 duration-150 group flex items-center justify-between gap-3
-                                 disabled:opacity-40 cursor-pointer"
-                    >
-                      <span className="text-sm text-slate-300 group-hover:text-white transition-colors">
-                        {s.label}
-                      </span>
-                      <span className="text-slate-600 group-hover:text-accent-400 group-hover:translate-x-0.5
-                                       transition-all flex-shrink-0">
-                        →
-                      </span>
-                    </button>
-                  ))}
-                </div>
+              {/* Suggestion cards */}
+              <p className="text-xs text-slate-500 mb-3 font-medium px-1">Sample questions</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                {SUGGESTIONS.map((s, i) => (
+                  <motion.button
+                    key={s.id}
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.05 * i, duration: 0.3 }}
+                    onClick={() => sendMessage(s.prompt)}
+                    disabled={isLoading}
+                    className="group relative overflow-hidden bg-surface-900 border border-white/[0.08]
+                               hover:border-accent-500/40 hover:bg-surface-850 p-4 rounded-2xl
+                               text-left transition-all duration-200 flex items-center justify-between gap-3
+                               disabled:opacity-40 cursor-pointer min-h-[60px] active:scale-[0.98]"
+                  >
+                    {/* Hover glow */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-accent-500/5 to-transparent
+                                    opacity-0 group-hover:opacity-100 transition-opacity duration-300
+                                    pointer-events-none rounded-2xl" />
+                    <span className="text-sm text-slate-300 group-hover:text-white transition-colors
+                                     leading-snug relative z-10">
+                      {s.label}
+                    </span>
+                    <span className="text-slate-600 group-hover:text-accent-400 group-hover:translate-x-1
+                                     transition-all duration-200 flex-shrink-0 text-base relative z-10">
+                      →
+                    </span>
+                  </motion.button>
+                ))}
               </div>
             </motion.div>
           )}
@@ -559,21 +577,31 @@ export default function Chat() {
           {messages.map(msg => (
             <MessageBubble key={msg.id} message={msg} onReview={handleReview} />
           ))}
-          <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} className="h-2" />
+          </div>
         </main>
 
-        {/* Input area */}
-        <footer className="px-5 py-4 border-t border-white/[0.06] bg-surface-950 flex-shrink-0">
-          <div className="max-w-3xl mx-auto mb-2">
+        {/* Input area — safe area inset for iOS home indicator */}
+        <footer className="px-3 sm:px-5 pt-3 pb-4 border-t border-white/[0.06] flex-shrink-0"
+                style={{
+                  background: 'rgba(13,15,20,0.92)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+                }}>
+          {/* Datasource picker */}
+          <div className="max-w-3xl mx-auto mb-2.5">
             <DatasourcePicker
               connections={connections}
               selectedId={selectedConnectionId}
               onChange={setSelectedConnectionId}
             />
           </div>
+
           <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-            <div className="relative flex items-end gap-3 bg-surface-900 border border-white/[0.10]
-                            focus-within:border-accent-500/60 rounded-xl px-4 py-3 transition-colors">
+            <div className="flex items-end gap-2 sm:gap-3 bg-surface-900/80 border border-white/[0.12]
+                            focus-within:border-accent-500/60 focus-within:shadow-input-focus
+                            rounded-2xl px-3 sm:px-4 py-2.5 transition-all duration-200">
               <textarea
                 ref={inputRef}
                 id="chat-input"
@@ -586,34 +614,38 @@ export default function Chat() {
                 onKeyDown={handleKeyDown}
                 placeholder={selectedConnectionId
                   ? `Ask ${connections.find(c => c.id === selectedConnectionId)?.name ?? 'your database'} anything…`
-                  : 'Ask your database anything… (Enter to send, Shift+Enter for new line)'}
+                  : 'Ask anything about your database…'}
                 disabled={isLoading}
                 rows={1}
                 className="flex-1 bg-transparent text-slate-100 placeholder-slate-500 text-sm
-                           resize-none focus:outline-none py-0.5 max-h-[200px] overflow-y-auto"
-                style={{ minHeight: '20px' }}
+                           resize-none focus:outline-none max-h-[160px] overflow-y-auto
+                           py-1.5 leading-relaxed"
+                style={{ minHeight: '24px' }}
               />
               <button
                 id="send-message-btn"
                 type="submit"
                 disabled={!input.trim() || isLoading}
-                className="btn-primary py-2 px-4 text-sm flex items-center gap-1.5 flex-shrink-0"
+                className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center
+                           bg-gradient-to-r from-accent-500 to-accent-600
+                           hover:from-accent-400 hover:to-accent-500
+                           disabled:opacity-40 disabled:cursor-not-allowed
+                           transition-all duration-200 shadow-sm hover:shadow-glow-sm
+                           active:scale-90"
+                aria-label="Send"
               >
                 {isLoading ? (
-                  <>
-                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Running</span>
-                  </>
+                  <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <>
-                    <span>Run</span>
-                    <span>→</span>
-                  </>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2">
+                    <line x1="22" y1="2" x2="11" y2="13"/>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                  </svg>
                 )}
               </button>
             </div>
-            <p className="text-xs text-slate-600 mt-2 px-1">
-              Read-only queries only · Up to 200 rows returned
+            <p className="text-[11px] text-slate-600 mt-2 px-1 text-center sm:text-left">
+              Read-only · Up to 200 rows · Enter to send, Shift+Enter for new line
             </p>
           </form>
         </footer>

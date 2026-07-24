@@ -90,18 +90,24 @@ export default function Sidebar({
   }
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-surface-900 select-none">
+    <div className="flex flex-col h-full select-none"
+         style={{ background: 'var(--bg-sidebar)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-white/[0.06]">
+      <div className="flex items-center justify-between px-4 py-4 border-b border-white/[0.06] flex-shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 bg-accent-500 rounded-lg flex items-center justify-center flex-shrink-0">
+          <div className="w-7 h-7 rounded-lg bg-gradient-accent flex items-center justify-center flex-shrink-0 shadow-glow-sm">
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
               <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
           </div>
           <span className="font-semibold text-white text-sm tracking-tight">SQL Cockpit</span>
         </div>
-        <button onClick={onClose} className="btn-ghost p-1.5 md:hidden text-slate-400">
+        {/* Mobile close */}
+        <button
+          onClick={onClose}
+          className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg
+                     text-slate-500 hover:text-white hover:bg-white/[0.08] transition-colors"
+        >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
@@ -109,15 +115,18 @@ export default function Sidebar({
       </div>
 
       {/* New chat */}
-      <div className="p-3 border-b border-white/[0.05]">
+      <div className="p-3 border-b border-white/[0.05] flex-shrink-0">
         <button
           id="new-conversation-btn"
           onClick={() => { onNewConversation(); onClose() }}
-          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg
-                     bg-white/[0.06] hover:bg-white/[0.10] border border-white/[0.08]
-                     text-slate-200 text-sm font-medium transition-all duration-150 active:scale-[0.98]"
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl
+                     bg-gradient-to-r from-accent-500/20 to-accent-600/10
+                     hover:from-accent-500/30 hover:to-accent-600/20
+                     border border-accent-500/20 hover:border-accent-500/35
+                     text-accent-300 hover:text-accent-200 text-sm font-medium
+                     transition-all duration-200 active:scale-[0.97]"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
           </svg>
           New conversation
@@ -125,16 +134,16 @@ export default function Sidebar({
       </div>
 
       {/* Connections */}
-      <div className="px-3 py-3 border-b border-white/[0.05]">
+      <div className="px-3 py-3 border-b border-white/[0.05] flex-shrink-0">
         <div className="flex items-center justify-between mb-2 px-1">
-          <span className="text-xs text-slate-500 font-medium uppercase tracking-wider">
+          <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-widest">
             Data sources
           </span>
           <button
             id="add-connection-btn"
             onClick={() => setShowConnModal(true)}
-            className="text-xs text-accent-400 hover:text-accent-300 font-medium px-2 py-0.5
-                       rounded hover:bg-accent-500/10 transition-colors"
+            className="text-xs text-accent-400 hover:text-accent-300 font-semibold px-2 py-0.5
+                       rounded-md hover:bg-accent-500/10 transition-colors"
             title="Add database connection"
           >
             + Add
@@ -142,11 +151,12 @@ export default function Sidebar({
         </div>
 
         {connections.length === 0 ? (
-          <p className="text-slate-600 text-xs px-1 py-1">
-            Using Chinook demo
-          </p>
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            <span className="text-lg">🎵</span>
+            <span className="text-xs text-slate-500">Chinook demo database</span>
+          </div>
         ) : (
-          <div className="space-y-1">
+          <div className="space-y-0.5">
             {connections.map((c) => {
               const dotColor =
                 c.status === 'connected'   ? '#4ade80'
@@ -154,16 +164,18 @@ export default function Sidebar({
                 : '#f87171'
               return (
                 <div key={c.id}
-                  className="group flex items-center gap-2 px-2 py-1.5 rounded-lg
+                  className="group flex items-center gap-2.5 px-2 py-2 rounded-xl
                              hover:bg-white/[0.05] transition-colors"
                 >
-                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor,
-                    flexShrink: 0 }} />
+                  <span style={{
+                    width: 7, height: 7, borderRadius: '50%', background: dotColor,
+                    flexShrink: 0, boxShadow: `0 0 6px ${dotColor}88`
+                  }} />
                   <span className="flex-1 text-sm text-slate-300 truncate">{c.name}</span>
                   <button
                     onClick={() => deleteConnMutation.mutate(c.id)}
-                    className="opacity-0 group-hover:opacity-100 text-slate-600 hover:text-red-400
-                               transition-all text-base leading-none px-1"
+                    className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center
+                               text-slate-600 hover:text-red-400 transition-all rounded"
                     title="Remove connection"
                   >×</button>
                 </div>
@@ -175,14 +187,24 @@ export default function Sidebar({
 
       {/* Conversation list */}
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
-        <p className="text-xs text-slate-500 font-medium uppercase tracking-wider px-1 mb-2">
+        <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-widest px-1 mb-2.5">
           History
         </p>
 
         {conversations.length === 0 ? (
-          <p className="text-slate-600 text-sm px-1 py-4 text-center">
-            No conversations yet
-          </p>
+          <div className="flex flex-col items-center justify-center py-8 gap-2">
+            <div className="w-10 h-10 rounded-2xl bg-white/[0.04] border border-white/[0.06]
+                            flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth="1.5" className="text-slate-600">
+                <path strokeLinecap="round" strokeLinejoin="round"
+                      d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586
+                         a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293
+                         l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+            </div>
+            <p className="text-slate-600 text-xs text-center">No conversations yet</p>
+          </div>
         ) : (
           <AnimatePresence>
             {conversations.map((convo) => (
@@ -191,8 +213,8 @@ export default function Sidebar({
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -8 }}
-                className={`group relative rounded-lg px-3 py-2 flex items-center gap-2 cursor-pointer
-                            transition-colors text-sm ${
+                className={`group relative rounded-xl px-3 py-2.5 flex items-center gap-2
+                            cursor-pointer transition-all duration-150 text-sm min-h-[44px] ${
                   activeConversationId === convo.id
                     ? 'sidebar-item-active'
                     : 'text-slate-400 hover:bg-white/[0.05] hover:text-slate-200'
@@ -204,6 +226,15 @@ export default function Sidebar({
                   }
                 }}
               >
+                {/* Chat icon */}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     strokeWidth="1.8" className="flex-shrink-0 opacity-50">
+                  <path strokeLinecap="round" strokeLinejoin="round"
+                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0
+                           01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8
+                           9-8s9 3.582 9 8z" />
+                </svg>
+
                 {editingId === convo.id ? (
                   <input
                     className="flex-1 bg-surface-850 border border-accent-500/60 text-white
@@ -226,12 +257,14 @@ export default function Sidebar({
                                 items-center gap-1">
                   <button
                     onClick={(e) => { e.stopPropagation(); handleRenameStart(convo) }}
-                    className="p-1 text-slate-500 hover:text-slate-300 transition-colors"
+                    className="w-6 h-6 flex items-center justify-center rounded text-slate-500
+                               hover:text-slate-300 transition-colors"
                     title="Rename"
                   >✎</button>
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(convo.id) }}
-                    className="p-1 text-slate-500 hover:text-red-400 transition-colors"
+                    className="w-6 h-6 flex items-center justify-center rounded text-slate-500
+                               hover:text-red-400 transition-colors"
                     title="Delete"
                   >×</button>
                 </div>
@@ -242,22 +275,24 @@ export default function Sidebar({
       </div>
 
       {/* User / logout */}
-      <div className="p-3 border-t border-white/[0.06]">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-7 h-7 bg-accent-500/20 border border-accent-500/30 rounded-full
-                            flex items-center justify-center text-xs font-semibold text-accent-300 flex-shrink-0">
-              {user?.username?.[0]?.toUpperCase() || 'U'}
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-slate-200 truncate">{user?.username}</p>
-              <p className="text-xs text-slate-500 truncate">{user?.email}</p>
-            </div>
+      <div className="p-3 border-t border-white/[0.06] flex-shrink-0">
+        <div className="flex items-center gap-2.5 px-1">
+          {/* Avatar — gradient circle */}
+          <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center
+                          text-xs font-bold text-white"
+               style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+            {user?.username?.[0]?.toUpperCase() || 'U'}
           </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-slate-200 truncate">{user?.username}</p>
+            <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
+          </div>
+          {/* Logout */}
           <button
             onClick={logout}
-            className="p-1.5 rounded-md hover:bg-white/[0.06] text-slate-500
-                       hover:text-red-400 transition-colors text-xs"
+            className="w-7 h-7 flex items-center justify-center rounded-lg
+                       text-slate-500 hover:text-red-400 hover:bg-red-500/10
+                       transition-all duration-150"
             title="Sign out"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -294,8 +329,9 @@ export default function Sidebar({
         )}
       </AnimatePresence>
 
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex md:w-64 flex-col bg-surface-900 border-r border-white/[0.06] h-screen flex-shrink-0">
+      {/* Desktop sidebar — glass background */}
+      <aside className="hidden md:flex md:w-64 flex-col border-r border-white/[0.06] h-dvh flex-shrink-0"
+             style={{ background: 'var(--bg-sidebar)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
         {sidebarContent}
       </aside>
 

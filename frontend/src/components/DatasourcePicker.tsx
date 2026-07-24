@@ -1,3 +1,8 @@
+/**
+ * components/DatasourcePicker.tsx
+ * Styled datasource selector — replaces raw inline styles with Tailwind.
+ * All logic (selectedId, onChange, status dot) preserved verbatim.
+ */
 import type { UserConnection } from '../lib/api'
 
 interface Props {
@@ -14,34 +19,34 @@ const STATUS_DOT: Record<string, string> = {
 }
 
 export default function DatasourcePicker({ connections, selectedId, onChange }: Props) {
+  const selectedConn = connections.find((c) => c.id === selectedId)
+  const dotColor = selectedId && selectedConn ? STATUS_DOT[selectedConn.status] ?? '#94a3b8' : null
+
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: '8px',
-      padding: '6px 12px',
-      background: 'rgba(255,255,255,0.04)',
-      borderRadius: '10px',
-      border: '1px solid rgba(255,255,255,0.10)',
-      fontSize: '0.84rem',
-    }}>
-      <span style={{ color: 'var(--text-secondary, #aaa)', whiteSpace: 'nowrap' }}>
-        Data source:
+    <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl
+                    bg-white/[0.04] border border-white/[0.08]
+                    hover:border-white/[0.14] transition-colors duration-150">
+      {/* Label */}
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="1.8" className="text-slate-500 flex-shrink-0">
+        <ellipse cx="12" cy="5" rx="9" ry="3"/>
+        <path d="M21 12c0 1.66-4.03 3-9 3S3 13.66 3 12"/>
+        <path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/>
+      </svg>
+
+      <span className="text-xs text-slate-500 font-medium whitespace-nowrap flex-shrink-0">
+        Data source
       </span>
+
+      {/* Native select — styled transparently */}
       <select
         id="datasource-picker"
         value={selectedId ?? ''}
         onChange={(e) => onChange(e.target.value || null)}
-        style={{
-          background: 'transparent',
-          border: 'none',
-          outline: 'none',
-          color: 'var(--text-primary, #e0e0e0)',
-          fontSize: '0.84rem',
-          cursor: 'pointer',
-          flex: 1,
-          minWidth: 0,
-        }}
+        className="flex-1 min-w-0 bg-transparent border-none outline-none
+                   text-slate-200 text-xs font-medium cursor-pointer
+                   appearance-none truncate"
+        style={{ colorScheme: 'dark' }}
       >
         <option value="">🎵 Chinook Demo</option>
         {connections.map((c) => (
@@ -51,19 +56,20 @@ export default function DatasourcePicker({ connections, selectedId, onChange }: 
         ))}
       </select>
 
-      {/* Status dot for the selected BYODB connection */}
-      {selectedId && (() => {
-        const conn = connections.find((c) => c.id === selectedId)
-        if (!conn) return null
-        const color = STATUS_DOT[conn.status] ?? '#aaa'
-        return (
-          <span title={conn.status} style={{
-            width: '8px', height: '8px', borderRadius: '50%',
-            background: color, flexShrink: 0,
-            boxShadow: `0 0 6px ${color}88`,
-          }} />
-        )
-      })()}
+      {/* Chevron */}
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none"
+           stroke="currentColor" strokeWidth="2.5" className="text-slate-600 flex-shrink-0">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+      </svg>
+
+      {/* Status dot for selected BYODB connection */}
+      {dotColor && (
+        <span
+          title={selectedConn?.status}
+          className="flex-shrink-0 w-2 h-2 rounded-full"
+          style={{ background: dotColor, boxShadow: `0 0 6px ${dotColor}88` }}
+        />
+      )}
     </div>
   )
 }
