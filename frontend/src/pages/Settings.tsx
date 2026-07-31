@@ -40,8 +40,12 @@ export default function Settings() {
       setCurrentPassword('')
       setNewPassword('')
       setConfirmNewPassword('')
-    } catch (err: any) {
-      setMessage({ type: 'error', text: err?.response?.data?.detail || 'Failed to update password.' })
+    } catch (err: unknown) {
+      const detail =
+        typeof err === 'object' && err !== null && 'response' in err
+          ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail
+          : undefined
+      setMessage({ type: 'error', text: detail ?? 'Failed to update password.' })
     } finally {
       setIsLoading(false)
     }

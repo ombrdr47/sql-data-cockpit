@@ -10,22 +10,46 @@ export default {
         sans: ['Inter', 'system-ui', 'sans-serif'],
         mono: ['JetBrains Mono', 'Fira Code', 'monospace'],
       },
+      maxWidth: {
+        'page': '1200px',
+      },
       colors: {
-        // Primary accent — violet/indigo
-        accent: {
-          50:  '#eef2ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#818cf8',
-          500: '#6366f1',
-          600: '#4f46e5',
-          700: '#4338ca',
-          800: '#3730a3',
-          900: '#312e81',
-          950: '#1e1b4b',
+        // Semantic landing-page tokens
+        canvas:  '#FAFAF9',   // off-white marketing bg
+        ink:     '#111214',   // near-black primary text / dark bg
+        muted:   '#5B6270',   // secondary text
+        ok:      '#15803d',   // success green (text)
+        'ok-soft': '#dcfce7', // success green bg
+        warn:    '#b45309',   // amber warning (text)
+        'warn-soft': '#fef9c3', // amber bg
+        line: {
+          DEFAULT: '#e5e7eb', // hairline border
+          strong:  '#d1d5db',
         },
-        // Console surface — deep neutral
+        // Primary brand accent — clean saturated blue, used only on CTAs and active states
+        accent: {
+          50:  '#eff6ff',
+          100: '#dbeafe',
+          200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
+          500: '#3b82f6',  // hover
+          600: '#2563eb',  // primary CTA — THE brand blue
+          700: '#1d4ed8',
+          800: '#1e40af',
+          900: '#1e3a8a',
+          950: '#172554',
+        },
+        // Fixed status colors — never reuse brand blue for these
+        status: {
+          'success':   '#22c55e',  // green-500
+          'warning':   '#f59e0b',  // amber-500
+          'error':     '#ef4444',  // red-500
+          'connected': '#22c55e',
+          'untested':  '#f59e0b',
+          'offline':   '#ef4444',
+        },
+        // App surface — deep neutral, not pure black, not cold blue
         surface: {
           50:  '#f8fafc',
           100: '#f1f5f9',
@@ -33,11 +57,11 @@ export default {
           300: '#cbd5e1',
           400: '#94a3b8',
           800: '#1e2028',
-          850: '#181a22',
-          900: '#13151c',
-          950: '#0d0f14',
+          850: '#181a1f',
+          900: '#13151a',
+          950: '#0f1117',  // main app bg
         },
-        // Marketing surface — warm off-white
+        // Marketing/auth pages — warm off-white per UI.md spec
         neutral: {
           50:  '#FAFAF9',
           100: '#F5F5F4',
@@ -52,34 +76,36 @@ export default {
         },
       },
       boxShadow: {
-        'glow-accent':  '0 0 24px rgba(99,102,241,0.30)',
-        'glow-sm':      '0 0 12px rgba(99,102,241,0.20)',
-        'glow-lg':      '0 0 48px rgba(99,102,241,0.25)',
-        'glow-emerald': '0 0 16px rgba(52,211,153,0.25)',
-        'glass':        '0 8px 32px rgba(0,0,0,0.36)',
-        'card-float':   '0 20px 60px rgba(0,0,0,0.40)',
-        'input-focus':  '0 0 0 3px rgba(99,102,241,0.25)',
-      },
-      backgroundImage: {
-        'gradient-accent': 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
-        'gradient-mesh':   'radial-gradient(ellipse at 20% 50%, rgba(99,102,241,0.15) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(139,92,246,0.10) 0%, transparent 50%)',
-        'gradient-dark':   'linear-gradient(180deg, #0d0f14 0%, #111214 100%)',
-        'shimmer':         'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%)',
+        // Only one glow — used exclusively on primary CTA/focus ring
+        'cta':          '0 0 0 3px rgba(37,99,235,0.30)',
+        'focus':        '0 0 0 3px rgba(37,99,235,0.25)',
+        // Neutral shadows for panels/cards
+        'glass':        '0 4px 24px rgba(0,0,0,0.28)',
+        'card':         '0 1px 4px rgba(0,0,0,0.20)',
+        'card-float':   '0 8px 32px rgba(0,0,0,0.32)',
+        // Auth card shadow (light background)
+        'card-light':   '0 1px 3px rgba(0,0,0,0.08), 0 4px 16px rgba(0,0,0,0.06)',
+        // Keep these but rarely used
+        'glow-sm':      '0 0 12px rgba(37,99,235,0.20)',
+        'glow-emerald': '0 0 12px rgba(34,197,94,0.25)',
       },
       animation: {
-        'spin-slow':     'spin 3s linear infinite',
-        'pulse-subtle':  'pulse 2.5s cubic-bezier(0.4,0,0.6,1) infinite',
-        'fade-up':       'fadeUp 0.5s ease-out forwards',
-        'fade-in':       'fadeIn 0.3s ease-out forwards',
-        'float':         'float 6s ease-in-out infinite',
-        'shimmer':       'shimmer 2s linear infinite',
-        'slide-in-right': 'slideInRight 0.3s ease-out forwards',
-        'slide-up':      'slideUp 0.4s cubic-bezier(0.16,1,0.3,1) forwards',
-        'glow-pulse':    'glowPulse 3s ease-in-out infinite',
+        'spin-slow':        'spin 3s linear infinite',
+        'pulse-subtle':     'pulse 2.5s cubic-bezier(0.4,0,0.6,1) infinite',
+        'fade-up':          'fadeUp 0.5s ease-out forwards',
+        'fade-in':          'fadeIn 0.3s ease-out forwards',
+        'float':            'float 6s ease-in-out infinite',
+        'float-delayed':    'float 6s ease-in-out 1.5s infinite',
+        'slide-in-right':   'slideInRight 0.3s ease-out forwards',
+        'slide-in-left':    'slideInLeft 0.3s ease-out forwards',
+        'slide-up':         'slideUp 0.4s cubic-bezier(0.16,1,0.3,1) forwards',
+        'pulse-dot':        'pulseDot 1.4s ease-in-out infinite',
+        'blink':            'blink 1s step-end infinite',
+        'gradient-pan':     'gradientPan 4s ease infinite',
       },
       keyframes: {
         fadeUp: {
-          '0%':   { opacity: '0', transform: 'translateY(20px)' },
+          '0%':   { opacity: '0', transform: 'translateY(16px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
         fadeIn: {
@@ -90,25 +116,33 @@ export default {
           '0%, 100%': { transform: 'translateY(0px)' },
           '50%':      { transform: 'translateY(-8px)' },
         },
-        shimmer: {
-          '0%':   { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition:  '200% 0' },
-        },
         slideInRight: {
-          '0%':   { opacity: '0', transform: 'translateX(16px)' },
+          '0%':   { opacity: '0', transform: 'translateX(12px)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
+        slideInLeft: {
+          '0%':   { opacity: '0', transform: 'translateX(-12px)' },
           '100%': { opacity: '1', transform: 'translateX(0)' },
         },
         slideUp: {
-          '0%':   { opacity: '0', transform: 'translateY(24px)' },
+          '0%':   { opacity: '0', transform: 'translateY(20px)' },
           '100%': { opacity: '1', transform: 'translateY(0)' },
         },
-        glowPulse: {
-          '0%, 100%': { boxShadow: '0 0 20px rgba(99,102,241,0.2)' },
-          '50%':      { boxShadow: '0 0 40px rgba(99,102,241,0.4)' },
+        pulseDot: {
+          '0%, 100%': { opacity: '1' },
+          '50%':      { opacity: '0.3' },
+        },
+        blink: {
+          '0%, 100%': { opacity: '1' },
+          '50%':      { opacity: '0' },
+        },
+        gradientPan: {
+          '0%, 100%': { backgroundSize: '200% 200%', backgroundPosition: 'left center' },
+          '50%':      { backgroundSize: '200% 200%', backgroundPosition: 'right center' },
         },
       },
       backdropBlur: {
-        xs: '2px',
+        xs:    '2px',
         '2xl': '40px',
       },
       borderRadius: {

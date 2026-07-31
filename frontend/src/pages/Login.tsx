@@ -1,43 +1,44 @@
 /**
- * pages/Login.tsx
- * Split-panel login — dark left panel + elevated right form.
- * All auth logic preserved verbatim.
+ * pages/Login.tsx — Light theme auth, matching Landing.tsx aesthetic.
+ * Left: light brand panel with grid bg, value props, SQL preview.
+ * Right: clean white form card. Auth logic unchanged.
  */
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { useAuth } from '../lib/auth'
 
-const TESTIMONIALS = [
-  {
-    quote: 'I went from writing SQL queries manually for hours to getting answers in seconds.',
-    author: 'Data Analyst',
-  },
-  {
-    quote: 'The human approval step means I trust every result — no surprises in production.',
-    author: 'Backend Engineer',
-  },
+const VALUE_PROPS = [
+  'Schema-aware table selection — no full-schema prompts',
+  'Every query validated by sqlglot before execution',
+  'Human approval checkpoint on ambiguous queries',
+  'Results as tables or charts, streamed live',
 ]
+
+const INK   = '#111214'
+const MUTED = '#5B6270'
+const BORDER = '#e5e7eb'
+const CANVAS = '#FAFAF9'
 
 export default function Login() {
   const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const { login }  = useAuth()
-  const navigate   = useNavigate()
+  const [loading, setLoading]   = useState(false)
+  const { login }    = useAuth()
+  const navigate     = useNavigate()
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
-    setIsLoading(true)
+    setLoading(true)
     try {
       await login(email, password)
       navigate('/chat')
-    } catch (err: any) {
-      setError(err.message || 'Authentication failed. Please check your credentials.')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Incorrect email or password.'
+      setError(msg)
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
@@ -47,134 +48,183 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-dvh flex">
+    <>
+      <style>{`
+        .auth-input {
+          width: 100%;
+          border: 1px solid ${BORDER};
+          border-radius: 0.75rem;
+          padding: 0.75rem 1rem;
+          font-size: 0.875rem;
+          color: ${INK};
+          background: #fff;
+          transition: border-color 0.15s, box-shadow 0.15s;
+          outline: none;
+        }
+        .auth-input::placeholder { color: #a8a29e; }
+        .auth-input:focus {
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+        }
+        .auth-grid-bg {
+          background-color: ${CANVAS};
+          background-image:
+            linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+          background-size: 32px 32px;
+        }
+      `}</style>
 
-      {/* ── Left panel (hidden on mobile) ────────────────────────────────── */}
-      <div className="hidden lg:flex lg:w-[45%] xl:w-1/2 relative flex-col
-                      bg-surface-950 overflow-hidden">
-        {/* Mesh background */}
-        <div className="absolute inset-0 bg-mesh pointer-events-none" aria-hidden />
-        <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full
-                        bg-accent-600/12 blur-[100px] pointer-events-none" />
-        <div className="absolute bottom-0 right-0 w-[400px] h-[400px] rounded-full
-                        bg-violet-600/8 blur-[80px] pointer-events-none" />
+      <div className="flex h-screen overflow-hidden font-sans" style={{ backgroundColor: CANVAS }}>
 
-        {/* Content */}
-        <div className="relative z-10 flex flex-col h-full p-10 xl:p-14">
+        {/* ── Left brand panel ──────────────────────────────────────────────── */}
+        <div
+          className="auth-grid-bg hidden lg:flex lg:w-[45%] xl:w-[40%] flex-col justify-between px-12 py-10 flex-shrink-0"
+          style={{ borderRight: `1px solid ${BORDER}` }}
+        >
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 mb-auto">
-            <div className="w-8 h-8 rounded-lg bg-gradient-accent flex items-center justify-center shadow-glow-sm">
-              <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
-                <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+          <Link to="/" className="flex items-center gap-2.5">
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center"
+              style={{ backgroundColor: INK }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             </div>
-            <span className="font-semibold text-white">SQL Cockpit</span>
+            <span className="font-semibold text-sm" style={{ color: INK }}>SQL Cockpit</span>
           </Link>
 
-          {/* Headline */}
-          <div className="mb-auto pt-16">
-            <h2 className="text-3xl xl:text-4xl font-bold text-white leading-tight mb-4">
-              Query your database<br />
-              <span className="text-gradient">in plain English.</span>
+          {/* Main copy */}
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] font-semibold mb-5" style={{ color: MUTED }}>
+              What you get
+            </p>
+            <h2 className="text-2xl font-bold leading-snug mb-8" style={{ color: INK }}>
+              Your database,<br />
+              in plain English
             </h2>
-            <p className="text-slate-400 text-base leading-relaxed max-w-sm">
-              The agent handles schema selection, SQL generation, safety validation, and
-              visualization — you just ask.
+
+            <ul className="space-y-4">
+              {VALUE_PROPS.map((prop) => (
+                <li key={prop} className="flex items-start gap-3">
+                  <div
+                    className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                    style={{ backgroundColor: '#dcfce7', border: '1px solid #bbf7d0' }}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                      <path d="M2.5 6l2.5 2.5 4.5-5" stroke="#15803d" strokeWidth="1.8"
+                        strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <span className="text-sm leading-relaxed" style={{ color: MUTED }}>{prop}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* SQL preview strip */}
+          <div>
+            <div
+              className="rounded-xl overflow-hidden"
+              style={{ border: `1px solid ${BORDER}`, backgroundColor: '#fff' }}
+            >
+              <div
+                className="px-4 py-2.5 text-[10px] font-mono"
+                style={{ borderBottom: `1px solid ${BORDER}`, color: '#15803d' }}
+              >
+                ✓ AST validated · read-only transaction
+              </div>
+              <pre className="px-4 py-3 text-[10px] font-mono leading-relaxed" style={{ color: INK }}>
+{`SELECT customer, SUM(total) AS revenue
+FROM   invoices
+GROUP  BY customer
+ORDER  BY revenue DESC
+LIMIT  10`}
+              </pre>
+            </div>
+            <p className="text-xs mt-4" style={{ color: '#a8a29e' }}>
+              Built on LangGraph · Groq · PostgreSQL · sqlglot
             </p>
           </div>
-
-          {/* Feature list */}
-          <div className="space-y-3 mb-10">
-            {[
-              { icon: '⊙', text: 'Schema-aware table pruning' },
-              { icon: '◈', text: 'AST validation + read-only execution' },
-              { icon: '◇', text: 'Human approval before any query runs' },
-            ].map((f) => (
-              <div key={f.text} className="flex items-center gap-3">
-                <span className="text-accent-400 text-base flex-shrink-0">{f.icon}</span>
-                <span className="text-sm text-slate-300">{f.text}</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Testimonial */}
-          <div className="border-t border-white/[0.08] pt-8">
-            <blockquote className="text-sm text-slate-400 italic leading-relaxed mb-3">
-              "{TESTIMONIALS[0].quote}"
-            </blockquote>
-            <p className="text-xs text-slate-500">— {TESTIMONIALS[0].author}</p>
-          </div>
         </div>
-      </div>
 
-      {/* ── Right panel (form) ───────────────────────────────────────────── */}
-      <div className="flex-1 flex items-center justify-center
-                      bg-neutral-50 px-5 py-10 sm:px-10">
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-[420px]"
+        {/* ── Right form panel ──────────────────────────────────────────────── */}
+        <div
+          className="flex-1 flex flex-col items-center justify-center px-5 sm:px-10 overflow-y-auto"
+          style={{ backgroundColor: CANVAS }}
         >
           {/* Mobile logo */}
-          <Link to="/" className="flex lg:hidden items-center gap-2 mb-8 justify-center">
-            <div className="w-8 h-8 rounded-lg bg-accent-500 flex items-center justify-center">
-              <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
-                <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+          <Link to="/" className="flex items-center gap-2 mb-8 lg:hidden">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: INK }}>
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             </div>
-            <span className="font-semibold text-neutral-900">SQL Cockpit</span>
+            <span className="font-semibold text-sm" style={{ color: INK }}>SQL Cockpit</span>
           </Link>
 
-          {/* Card */}
-          <div className="bg-white rounded-3xl shadow-glass border border-neutral-100 p-7 sm:p-9">
+          <div className="w-full max-w-[380px]">
+            {/* Heading */}
             <div className="mb-7">
-              <h1 className="text-2xl font-bold text-neutral-900 tracking-tight mb-1">
-                Welcome back
-              </h1>
-              <p className="text-sm text-neutral-500">Sign in to your workspace.</p>
+              <h1 className="text-xl font-bold mb-1" style={{ color: INK }}>Sign in</h1>
+              <p className="text-sm" style={{ color: MUTED }}>
+                Welcome back. Enter your credentials to continue.
+              </p>
             </div>
 
             {/* Demo shortcut */}
             <button
+              id="demo-btn"
               type="button"
               onClick={fillDemo}
-              id="fill-demo-btn"
-              className="w-full mb-6 flex items-center gap-3 px-4 py-3
-                         bg-accent-50 border border-accent-200 rounded-2xl
-                         text-left group hover:bg-accent-100 transition-colors"
+              className="w-full mb-5 flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-left"
+              style={{ border: `1px solid ${BORDER}`, backgroundColor: '#fff' }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = CANVAS)}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#fff')}
             >
-              <span className="text-xl">⚡</span>
-              <div className="flex-1 min-w-0">
-                <span className="block text-sm font-medium text-accent-700">Try the demo</span>
-                <span className="text-xs text-accent-500">Fill demo credentials instantly</span>
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"
+                style={{ backgroundColor: CANVAS, border: `1px solid ${BORDER}` }}
+              >
+                ⚡
               </div>
-              <span className="text-accent-400 group-hover:translate-x-0.5 transition-transform text-sm">→</span>
+              <div className="min-w-0">
+                <p className="text-sm font-medium leading-tight" style={{ color: INK }}>Try the demo</p>
+                <p className="text-xs mt-0.5" style={{ color: MUTED }}>Fills credentials automatically</p>
+              </div>
+              <svg className="ml-auto flex-shrink-0" width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: MUTED }}>
+                <path d="M6 12l4-4-4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
 
             {/* Divider */}
-            <div className="flex items-center gap-3 mb-6">
-              <div className="flex-1 h-px bg-neutral-200" />
-              <span className="text-xs text-neutral-400 font-medium">or sign in with email</span>
-              <div className="flex-1 h-px bg-neutral-200" />
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex-1 h-px" style={{ backgroundColor: BORDER }} />
+              <span className="text-xs whitespace-nowrap" style={{ color: '#a8a29e' }}>or continue with email</span>
+              <div className="flex-1 h-px" style={{ backgroundColor: BORDER }} />
             </div>
 
             {/* Error */}
             {error && (
-              <div className="mb-5 px-4 py-3 bg-red-50 border border-red-200 rounded-xl
-                              text-sm text-red-600 flex items-center gap-2">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
-                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+              <div
+                className="mb-4 flex items-start gap-2.5 px-3.5 py-3 rounded-xl"
+                style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}
+              >
+                <svg className="flex-shrink-0 mt-0.5" width="14" height="14"
+                  viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path strokeLinecap="round" d="M12 8v4M12 16h.01" />
                 </svg>
-                {error}
+                <p className="text-sm" style={{ color: '#dc2626' }}>{error}</p>
               </div>
             )}
 
+            {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1.5">
-                  Email
+                <label className="block text-sm font-medium mb-1.5" style={{ color: INK }}>
+                  Email address
                 </label>
                 <input
                   id="email-input"
@@ -184,12 +234,12 @@ export default function Login() {
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   autoComplete="email"
-                  className="input-field-light"
+                  className="auth-input"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-neutral-700 mb-1.5">
+                <label className="block text-sm font-medium mb-1.5" style={{ color: INK }}>
                   Password
                 </label>
                 <input
@@ -200,42 +250,38 @@ export default function Login() {
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   autoComplete="current-password"
-                  className="input-field-light"
+                  className="auth-input"
                 />
               </div>
 
               <button
                 id="login-submit-btn"
                 type="submit"
-                disabled={isLoading}
-                className="w-full bg-gradient-to-r from-accent-500 to-accent-600
-                           hover:from-accent-400 hover:to-accent-500
-                           text-white font-semibold py-3.5 rounded-2xl
-                           transition-all duration-200 shadow-sm hover:shadow-glow-sm
-                           flex items-center justify-center gap-2
-                           disabled:opacity-50 disabled:cursor-not-allowed
-                           active:scale-[0.98] mt-2 text-sm"
+                disabled={loading}
+                className="w-full mt-1 py-3 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+                style={{ backgroundColor: '#2563eb', color: '#fff' }}
+                onMouseEnter={e => !loading && (e.currentTarget.style.backgroundColor = '#1d4ed8')}
+                onMouseLeave={e => !loading && (e.currentTarget.style.backgroundColor = '#2563eb')}
               >
-                {isLoading ? (
+                {loading ? (
                   <>
-                    <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                    <span className="w-4 h-4 border-2 rounded-full animate-spin"
+                      style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#fff' }} />
                     Signing in…
                   </>
-                ) : (
-                  'Sign in'
-                )}
+                ) : 'Sign in'}
               </button>
             </form>
 
-            <p className="mt-6 text-center text-sm text-neutral-500">
+            <p className="mt-5 text-center text-sm" style={{ color: MUTED }}>
               Don't have an account?{' '}
-              <Link to="/signup" className="text-accent-600 hover:text-accent-500 font-semibold">
-                Sign up free
+              <Link to="/signup" className="font-semibold" style={{ color: '#2563eb' }}>
+                Create one free
               </Link>
             </p>
           </div>
-        </motion.div>
+        </div>
       </div>
-    </div>
+    </>
   )
 }

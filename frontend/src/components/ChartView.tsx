@@ -15,6 +15,14 @@ interface ChartViewProps {
   base64: string // Plotly JSON string (field named base64 for backward compat)
 }
 
+/** Minimal type for the Plotly global loaded via CDN script tag. */
+interface PlotlyLib {
+  newPlot: (el: HTMLElement, data: unknown[], layout: unknown, config: unknown) => void
+  react:   (el: HTMLElement, data: unknown[], layout: unknown, config: unknown) => void
+  purge:   (el: HTMLElement) => void
+  Plots:   { resize: (el: HTMLElement) => void }
+}
+
 // Buttons we want to REMOVE from the modebar — keeping zoom in/out, pan, reset, autoscale, download PNG
 const MODEBAR_REMOVE = [
   'select2d', 'lasso2d',
@@ -40,7 +48,7 @@ export default function ChartView({ base64 }: ChartViewProps) {
   }, [base64])
 
   useEffect(() => {
-    const Plotly = (window as any).Plotly
+    const Plotly = (window as Window & { Plotly?: PlotlyLib }).Plotly
     if (!plotData || !plotRef.current || !Plotly) return
 
     const layout = {
@@ -136,8 +144,8 @@ export default function ChartView({ base64 }: ChartViewProps) {
 
     return () => {
       observer.disconnect()
-      if (plotRef.current) {
-        try { Plotly.purge(plotRef.current) } catch { /* ignore */ }
+      if (el) {
+        try { Plotly.purge(el) } catch { /* ignore */ }
       }
     }
   }, [plotData])

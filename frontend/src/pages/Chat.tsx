@@ -4,7 +4,7 @@
  * All SSE streaming logic, HITL flow, conversation management,
  * and API calls are preserved verbatim. Only JSX markup and class names changed.
  */
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import MessageBubble, { type Message, type TableData } from '../components/MessageBubble'
@@ -57,20 +57,7 @@ export default function Chat() {
   // In that case we do NOT want to refetch from DB and overwrite in-memory messages.
   const skipNextLoadRef = useRef(false)
 
-  // Only reload messages when the user selects a conversation from the sidebar.
-  useEffect(() => {
-    if (!activeConversationId) {
-      setMessages([])
-      return
-    }
-    if (skipNextLoadRef.current) {
-      skipNextLoadRef.current = false
-      return
-    }
-    loadConversationMessages(activeConversationId)
-  }, [activeConversationId])
-
-  const loadConversationMessages = async (conversationId: string) => {
+  const loadConversationMessages = useCallback(async (conversationId: string) => {
     try {
       const { data } = await api.get(`/conversations/${conversationId}/messages`)
       const loaded: Message[] = data.map((m: Record<string, unknown>) => ({
@@ -87,7 +74,21 @@ export default function Chat() {
     } catch (err) {
       console.error('Failed to load messages:', err)
     }
-  }
+  }, [])
+
+  // Only reload messages when the user selects a conversation from the sidebar.
+  useEffect(() => {
+    if (!activeConversationId) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMessages([])
+      return
+    }
+    if (skipNextLoadRef.current) {
+      skipNextLoadRef.current = false
+      return
+    }
+    loadConversationMessages(activeConversationId)
+  }, [activeConversationId, loadConversationMessages])
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -450,17 +451,15 @@ export default function Chat() {
 
       {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar — glassmorphic, works on all viewports */}
+        {/* Top bar — solid surface, no glassmorphism */}
         <header className="flex items-center justify-between px-4 sm:px-5 py-3
-                           border-b border-white/[0.06] flex-shrink-0"
-                style={{ background: 'rgba(13,15,20,0.85)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' }}>
+                           border-b border-white/[0.07] bg-surface-950 flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
-            {/* Hamburger — visible on mobile, hidden on md+ */}
             <button
               onClick={() => setSidebarOpen(true)}
               className="md:hidden flex-shrink-0 w-10 h-10 flex items-center justify-center
-                         rounded-xl text-slate-400 hover:text-white hover:bg-white/[0.08]
-                         transition-all duration-150 active:scale-90"
+                         rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/[0.05]
+                         transition-colors duration-150"
               aria-label="Open sidebar"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -468,10 +467,9 @@ export default function Chat() {
               </svg>
             </button>
 
-            {/* Breadcrumb */}
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-6 h-6 rounded-md bg-gradient-accent hidden sm:flex items-center justify-center flex-shrink-0">
-                <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <div className="w-6 h-6 rounded-md bg-accent-600 hidden sm:flex items-center justify-center flex-shrink-0">
+                <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
                   <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
                 </svg>
               </div>
@@ -481,20 +479,18 @@ export default function Chat() {
             </div>
           </div>
 
-          {/* Status indicator */}
+          {/* Status — uses status colors, not brand blue */}
           <div className="flex items-center gap-3 flex-shrink-0">
             <AnimatePresence mode="wait">
               {isLoading ? (
                 <motion.div
                   key="loading"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  className="flex items-center gap-2 text-xs text-accent-300
-                             bg-accent-500/10 border border-accent-500/20
-                             px-3 py-1.5 rounded-full"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="flex items-center gap-2 text-xs text-slate-400"
                 >
-                  <span className="w-1.5 h-1.5 bg-accent-400 rounded-full animate-pulse flex-shrink-0" />
+                  <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-pulse flex-shrink-0" />
                   <span className="hidden xs:inline">Working…</span>
                 </motion.div>
               ) : (
@@ -505,7 +501,8 @@ export default function Chat() {
                   exit={{ opacity: 0 }}
                   className="flex items-center gap-1.5 text-xs text-slate-500"
                 >
-                  <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                  <span className="w-1.5 h-1.5 rounded-full"
+                        style={{ background: 'var(--status-success)' }} />
                   <span className="hidden sm:inline">Ready</span>
                 </motion.div>
               )}
@@ -527,47 +524,38 @@ export default function Chat() {
             >
               {/* Greeting */}
               <div className="text-center mb-8 sm:mb-10">
-                <div className="w-12 h-12 rounded-2xl bg-gradient-accent flex items-center justify-center
-                                mx-auto mb-4 shadow-glow-accent animate-float">
-                  <svg width="22" height="22" viewBox="0 0 14 14" fill="none">
+                <div className="w-10 h-10 rounded-xl bg-accent-600 flex items-center justify-center mx-auto mb-4">
+                  <svg width="18" height="18" viewBox="0 0 14 14" fill="none">
                     <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
                   </svg>
                 </div>
-                <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">How can I help?</h2>
+                <h2 className="text-lg sm:text-xl font-semibold text-white mb-2">How can I help?</h2>
                 <p className="text-sm text-slate-400 max-w-sm mx-auto leading-relaxed">
-                  Ask anything about your data. I'll select the right tables, write the SQL,
-                  validate it, and return results.
+                  Ask a question about your data in plain English.
                 </p>
               </div>
 
-              {/* Suggestion cards */}
-              <p className="text-xs text-slate-500 mb-3 font-medium px-1">Sample questions</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* Suggestion cards — neutral, no accent color */}
+              <p className="text-[11px] text-slate-500 mb-3 font-medium uppercase tracking-wider px-1">Try a question</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {SUGGESTIONS.map((s, i) => (
                   <motion.button
                     key={s.id}
-                    initial={{ opacity: 0, y: 12 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.05 * i, duration: 0.3 }}
+                    transition={{ delay: 0.05 * i, duration: 0.25 }}
                     onClick={() => sendMessage(s.prompt)}
                     disabled={isLoading}
-                    className="group relative overflow-hidden bg-surface-900 border border-white/[0.08]
-                               hover:border-accent-500/40 hover:bg-surface-850 p-4 rounded-2xl
-                               text-left transition-all duration-200 flex items-center justify-between gap-3
-                               disabled:opacity-40 cursor-pointer min-h-[60px] active:scale-[0.98]"
+                    className="bg-surface-900 border border-white/[0.08]
+                               hover:border-white/[0.14] hover:bg-surface-850
+                               p-4 rounded-xl text-left transition-colors duration-150
+                               flex items-center justify-between gap-3
+                               disabled:opacity-40 cursor-pointer min-h-[56px]"
                   >
-                    {/* Hover glow */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-accent-500/5 to-transparent
-                                    opacity-0 group-hover:opacity-100 transition-opacity duration-300
-                                    pointer-events-none rounded-2xl" />
-                    <span className="text-sm text-slate-300 group-hover:text-white transition-colors
-                                     leading-snug relative z-10">
+                    <span className="text-sm text-slate-300 hover:text-white leading-snug">
                       {s.label}
                     </span>
-                    <span className="text-slate-600 group-hover:text-accent-400 group-hover:translate-x-1
-                                     transition-all duration-200 flex-shrink-0 text-base relative z-10">
-                      →
-                    </span>
+                    <span className="text-slate-600 flex-shrink-0 text-sm">→</span>
                   </motion.button>
                 ))}
               </div>
@@ -581,14 +569,9 @@ export default function Chat() {
           </div>
         </main>
 
-        {/* Input area — safe area inset for iOS home indicator */}
-        <footer className="px-3 sm:px-5 pt-3 pb-4 border-t border-white/[0.06] flex-shrink-0"
-                style={{
-                  background: 'rgba(13,15,20,0.92)',
-                  backdropFilter: 'blur(12px)',
-                  WebkitBackdropFilter: 'blur(12px)',
-                  paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
-                }}>
+        {/* Input area — solid surface, iOS safe area */}
+        <footer className="px-3 sm:px-5 pt-3 border-t border-white/[0.07] flex-shrink-0 bg-surface-950"
+                style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           {/* Datasource picker */}
           <div className="max-w-3xl mx-auto mb-2.5">
             <DatasourcePicker
@@ -599,9 +582,9 @@ export default function Chat() {
           </div>
 
           <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-            <div className="flex items-end gap-2 sm:gap-3 bg-surface-900/80 border border-white/[0.12]
-                            focus-within:border-accent-500/60 focus-within:shadow-input-focus
-                            rounded-2xl px-3 sm:px-4 py-2.5 transition-all duration-200">
+            <div className="flex items-end gap-2 sm:gap-3 bg-surface-900 border border-white/[0.10]
+                            focus-within:border-accent-600/40 focus-within:ring-1 focus-within:ring-accent-600/15
+                            rounded-xl px-3 sm:px-4 py-2.5 transition-colors duration-150">
               <textarea
                 ref={inputRef}
                 id="chat-input"
@@ -626,12 +609,10 @@ export default function Chat() {
                 id="send-message-btn"
                 type="submit"
                 disabled={!input.trim() || isLoading}
-                className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center
-                           bg-gradient-to-r from-accent-500 to-accent-600
-                           hover:from-accent-400 hover:to-accent-500
-                           disabled:opacity-40 disabled:cursor-not-allowed
-                           transition-all duration-200 shadow-sm hover:shadow-glow-sm
-                           active:scale-90"
+                className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center
+                           bg-accent-600 hover:bg-accent-700
+                           disabled:opacity-30 disabled:cursor-not-allowed
+                           transition-colors duration-150 active:scale-[0.95]"
                 aria-label="Send"
               >
                 {isLoading ? (

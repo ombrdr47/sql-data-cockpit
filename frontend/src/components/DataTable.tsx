@@ -78,6 +78,7 @@ export default function DataTable({ columns, rows, totalRows }: DataTableProps) 
     [columns]
   )
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: rows,
     columns: tableCols,

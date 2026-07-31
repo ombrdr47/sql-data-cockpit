@@ -90,23 +90,22 @@ export default function Sidebar({
   }
 
   const sidebarContent = (
-    <div className="flex flex-col h-full select-none"
-         style={{ background: 'var(--bg-sidebar)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
+    <div className="flex flex-col h-full select-none bg-surface-900">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-4 border-b border-white/[0.06] flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.07] flex-shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-gradient-accent flex items-center justify-center flex-shrink-0 shadow-glow-sm">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+          <div className="w-6 h-6 rounded-md bg-accent-600 flex items-center justify-center flex-shrink-0">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
               <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
           </div>
-          <span className="font-semibold text-white text-sm tracking-tight">SQL Cockpit</span>
+          <span className="font-semibold text-white text-sm">SQL Cockpit</span>
         </div>
         {/* Mobile close */}
         <button
           onClick={onClose}
           className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg
-                     text-slate-500 hover:text-white hover:bg-white/[0.08] transition-colors"
+                     text-slate-500 hover:text-slate-200 hover:bg-white/[0.05] transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -115,18 +114,17 @@ export default function Sidebar({
       </div>
 
       {/* New chat */}
-      <div className="p-3 border-b border-white/[0.05] flex-shrink-0">
+      <div className="p-3 border-b border-white/[0.07] flex-shrink-0">
         <button
           id="new-conversation-btn"
           onClick={() => { onNewConversation(); onClose() }}
-          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-xl
-                     bg-gradient-to-r from-accent-500/20 to-accent-600/10
-                     hover:from-accent-500/30 hover:to-accent-600/20
-                     border border-accent-500/20 hover:border-accent-500/35
-                     text-accent-300 hover:text-accent-200 text-sm font-medium
-                     transition-all duration-200 active:scale-[0.97]"
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg
+                     bg-white/[0.06] hover:bg-white/[0.09]
+                     border border-white/[0.09] hover:border-white/[0.14]
+                     text-slate-300 hover:text-white text-sm font-medium
+                     transition-colors duration-150"
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
           </svg>
           New conversation
@@ -142,8 +140,8 @@ export default function Sidebar({
           <button
             id="add-connection-btn"
             onClick={() => setShowConnModal(true)}
-            className="text-xs text-accent-400 hover:text-accent-300 font-semibold px-2 py-0.5
-                       rounded-md hover:bg-accent-500/10 transition-colors"
+            className="text-xs text-slate-400 hover:text-slate-200 font-semibold px-2 py-0.5
+                       rounded hover:bg-white/[0.06] transition-colors"
             title="Add database connection"
           >
             + Add
@@ -169,7 +167,7 @@ export default function Sidebar({
                 >
                   <span style={{
                     width: 7, height: 7, borderRadius: '50%', background: dotColor,
-                    flexShrink: 0, boxShadow: `0 0 6px ${dotColor}88`
+                    flexShrink: 0,
                   }} />
                   <span className="flex-1 text-sm text-slate-300 truncate">{c.name}</span>
                   <button
@@ -277,10 +275,9 @@ export default function Sidebar({
       {/* User / logout */}
       <div className="p-3 border-t border-white/[0.06] flex-shrink-0">
         <div className="flex items-center gap-2.5 px-1">
-          {/* Avatar — gradient circle */}
-          <div className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center
-                          text-xs font-bold text-white"
-               style={{ background: 'linear-gradient(135deg, #6366f1, #8b5cf6)' }}>
+          {/* Avatar — flat neutral circle */}
+          <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center
+                          text-xs font-bold text-white bg-slate-700">
             {user?.username?.[0]?.toUpperCase() || 'U'}
           </div>
           <div className="flex-1 min-w-0">
@@ -329,9 +326,9 @@ export default function Sidebar({
         )}
       </AnimatePresence>
 
-      {/* Desktop sidebar — glass background */}
-      <aside className="hidden md:flex md:w-64 flex-col border-r border-white/[0.06] h-dvh flex-shrink-0"
-             style={{ background: 'var(--bg-sidebar)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
+      {/* Desktop sidebar — solid surface */}
+      <aside className="hidden md:flex md:w-60 flex-col border-r border-white/[0.07] h-dvh flex-shrink-0
+                        bg-surface-900">
         {sidebarContent}
       </aside>
 
