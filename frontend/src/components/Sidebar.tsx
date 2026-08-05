@@ -4,6 +4,7 @@
  * All logic (mutations, rename, delete, connections) preserved verbatim.
  */
 import { useState } from 'react'
+import {useNavigate} from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api, { connectionsApi, type UserConnection } from '../lib/api'
@@ -34,6 +35,7 @@ export default function Sidebar({
 }: SidebarProps) {
   const queryClient = useQueryClient()
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const [editingId, setEditingId]     = useState<string | null>(null)
   const [editTitle, setEditTitle]     = useState('')
   const [showConnModal, setShowConnModal] = useState(false)
@@ -285,6 +287,14 @@ export default function Sidebar({
             <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
           </div>
           {/* Logout */}
+          <button
+            onClick={() => { navigate('/settings'); onClose() }}
+            className="p-1.5 rounded hover:bg-surface-800 text-slate-500 hover:text-white transition-colors font-bold text-xs"
+            title="Settings"
+          >
+            [SETTINGS]
+          </button>
+
           <button
             onClick={logout}
             className="w-7 h-7 flex items-center justify-center rounded-lg
