@@ -10,7 +10,7 @@ services:
       - key: JWT_SECRET_KEY
         generateValue: true
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: "https://sql-data-cockpit.vercel.app"
       - key: ENVIRONMENT
         value: production
       - key: SECURE_COOKIES

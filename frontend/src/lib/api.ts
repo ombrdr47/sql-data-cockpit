@@ -127,3 +127,47 @@ api.interceptors.response.use(
 )
 
 export default api
+
+// ── BYODB Connections API ──────────────────────────────────────────────────────
+
+export interface UserConnection {
+  id: string
+  name: string
+  host_masked: string
+  port: number
+  database_masked: string
+  status: 'untested' | 'connected' | 'unreachable' | 'auth_failed'
+  last_tested_at: string | null
+  created_at: string
+}
+
+export interface ConnectionCreate {
+  name: string
+  host: string
+  port: number
+  database: string
+  username: string
+  password: string
+}
+
+export interface ConnectionUpdate {
+  name?: string
+  password?: string
+}
+
+export const connectionsApi = {
+  list: (): Promise<UserConnection[]> =>
+    api.get('/connections').then((r) => r.data),
+
+  create: (payload: ConnectionCreate): Promise<UserConnection> =>
+    api.post('/connections', payload).then((r) => r.data),
+
+  update: (id: string, payload: ConnectionUpdate): Promise<UserConnection> =>
+    api.patch(`/connections/${id}`, payload).then((r) => r.data),
+
+  delete: (id: string): Promise<void> =>
+    api.delete(`/connections/${id}`).then(() => undefined),
+
+  test: (id: string): Promise<UserConnection> =>
+    api.post(`/connections/${id}/test`).then((r) => r.data),
+}

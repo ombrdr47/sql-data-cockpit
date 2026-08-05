@@ -53,6 +53,9 @@ Thumbs.db
 .pytest_cache/
 htmlcov/
 
+# Linter caches
+.ruff_cache/
+
 # LangSmith / API keys (never commit)
 langsmith.json
 

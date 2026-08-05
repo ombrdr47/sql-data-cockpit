@@ -1,14 +1,15 @@
 /**
  * components/Sidebar.tsx
- * Conversation history sidebar (ChatGPT-style).
- * Features: list, rename (inline edit), delete, new conversation button.
+ * Conversation history sidebar — restyled per UI.md.
+ * All logic (mutations, rename, delete, connections) preserved verbatim.
  */
 import { useState } from 'react'
 import {useNavigate} from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import api from '../lib/api'
+import api, { connectionsApi, type UserConnection } from '../lib/api'
 import { useAuth } from '../lib/auth'
+import ConnectionModal from './ConnectionModal'
 
 interface Conversation {
   id: string
@@ -34,9 +35,20 @@ export default function Sidebar({
 }: SidebarProps) {
   const queryClient = useQueryClient()
   const { user, logout } = useAuth()
-  const navigate=useNavigate()
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editTitle, setEditTitle] = useState('')
+  const navigate = useNavigate()
+  const [editingId, setEditingId]     = useState<string | null>(null)
+  const [editTitle, setEditTitle]     = useState('')
+  const [showConnModal, setShowConnModal] = useState(false)
+
+  const { data: connections = [] } = useQuery<UserConnection[]>({
+    queryKey: ['connections'],
+    queryFn: () => connectionsApi.list(),
+  })
+
+  const deleteConnMutation = useMutation({
+    mutationFn: (id: string) => connectionsApi.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['connections'] }),
+  })
 
   const { data: conversations = [] } = useQuery<Conversation[]>({
     queryKey: ['conversations'],
@@ -62,9 +74,7 @@ export default function Sidebar({
     },
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
-      if (activeConversationId === id) {
-        onNewConversation()
-      }
+      if (activeConversationId === id) onNewConversation()
     },
   })
 
@@ -82,45 +92,119 @@ export default function Sidebar({
   }
 
   const sidebarContent = (
-    <div className="flex flex-col h-full bg-surface-950 font-mono text-xs select-none">
+    <div className="flex flex-col h-full select-none bg-surface-900">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-surface-900/50">
+      <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.07] flex-shrink-0">
         <div className="flex items-center gap-2.5">
-          <div className="w-6 h-6 bg-brand-500 rounded flex items-center justify-center text-surface-950 font-bold text-xs shadow-[0_0_10px_rgba(255,107,0,0.4)]">
-            SQL
+          <div className="w-6 h-6 rounded-md bg-accent-600 flex items-center justify-center flex-shrink-0">
+            <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+              <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
           </div>
-          <span className="font-bold tracking-tight text-white uppercase">
-            Data Cockpit <span className="text-brand-500 text-[10px]">v2.0</span>
-          </span>
+          <span className="font-semibold text-white text-sm">SQL Cockpit</span>
         </div>
-        <button onClick={onClose} className="btn-ghost p-1.5 md:hidden">
-          <span>[×]</span>
+        {/* Mobile close */}
+        <button
+          onClick={onClose}
+          className="md:hidden w-8 h-8 flex items-center justify-center rounded-lg
+                     text-slate-500 hover:text-slate-200 hover:bg-white/[0.05] transition-colors"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </div>
 
-      {/* New chat button */}
-      <div className="p-3 border-b border-slate-800/80">
+      {/* New chat */}
+      <div className="p-3 border-b border-white/[0.07] flex-shrink-0">
         <button
           id="new-conversation-btn"
           onClick={() => { onNewConversation(); onClose() }}
-          className="w-full flex items-center justify-between px-3 py-2.5 rounded
-                     bg-brand-500 hover:bg-brand-400 text-surface-950 font-bold text-xs uppercase tracking-wider
-                     transition-all duration-150 shadow-[0_0_10px_rgba(255,107,0,0.2)] active:scale-95"
+          className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg
+                     bg-white/[0.06] hover:bg-white/[0.09]
+                     border border-white/[0.09] hover:border-white/[0.14]
+                     text-slate-300 hover:text-white text-sm font-medium
+                     transition-colors duration-150"
         >
-          <span>[+ NEW_TRANSACTION]</span>
-          <span>⚡</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+          </svg>
+          New conversation
         </button>
       </div>
 
-      {/* Conversation list */}
-      <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
-        <div className="text-[10px] text-slate-500 px-2 py-1 uppercase tracking-widest font-bold">
-          // SESSION_AUDIT_LOGS
+      {/* Connections */}
+      <div className="px-3 py-3 border-b border-white/[0.05] flex-shrink-0">
+        <div className="flex items-center justify-between mb-2 px-1">
+          <span className="text-[10px] text-slate-500 font-semibold uppercase tracking-widest">
+            Data sources
+          </span>
+          <button
+            id="add-connection-btn"
+            onClick={() => setShowConnModal(true)}
+            className="text-xs text-slate-400 hover:text-slate-200 font-semibold px-2 py-0.5
+                       rounded hover:bg-white/[0.06] transition-colors"
+            title="Add database connection"
+          >
+            + Add
+          </button>
         </div>
+
+        {connections.length === 0 ? (
+          <div className="flex items-center gap-2 px-2 py-1.5">
+            <span className="text-lg">🎵</span>
+            <span className="text-xs text-slate-500">Chinook demo database</span>
+          </div>
+        ) : (
+          <div className="space-y-0.5">
+            {connections.map((c) => {
+              const dotColor =
+                c.status === 'connected'   ? '#4ade80'
+                : c.status === 'untested'  ? '#fbbf24'
+                : '#f87171'
+              return (
+                <div key={c.id}
+                  className="group flex items-center gap-2.5 px-2 py-2 rounded-xl
+                             hover:bg-white/[0.05] transition-colors"
+                >
+                  <span style={{
+                    width: 7, height: 7, borderRadius: '50%', background: dotColor,
+                    flexShrink: 0,
+                  }} />
+                  <span className="flex-1 text-sm text-slate-300 truncate">{c.name}</span>
+                  <button
+                    onClick={() => deleteConnMutation.mutate(c.id)}
+                    className="opacity-0 group-hover:opacity-100 w-5 h-5 flex items-center justify-center
+                               text-slate-600 hover:text-red-400 transition-all rounded"
+                    title="Remove connection"
+                  >×</button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Conversation list */}
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
+        <p className="text-[10px] text-slate-500 font-semibold uppercase tracking-widest px-1 mb-2.5">
+          History
+        </p>
+
         {conversations.length === 0 ? (
-          <p className="text-slate-600 text-xs px-2 py-6 text-center">
-            [NO_TRANSACTIONS]<br />Execute prompt to log session.
-          </p>
+          <div className="flex flex-col items-center justify-center py-8 gap-2">
+            <div className="w-10 h-10 rounded-2xl bg-white/[0.04] border border-white/[0.06]
+                            flex items-center justify-center">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   strokeWidth="1.5" className="text-slate-600">
+                <path strokeLinecap="round" strokeLinejoin="round"
+                      d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586
+                         a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293
+                         l-2.414-2.414A1 1 0 006.586 13H4" />
+              </svg>
+            </div>
+            <p className="text-slate-600 text-xs text-center">No conversations yet</p>
+          </div>
         ) : (
           <AnimatePresence>
             {conversations.map((convo) => (
@@ -129,10 +213,11 @@ export default function Sidebar({
                 initial={{ opacity: 0, x: -8 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -8 }}
-                className={`group relative rounded px-2.5 py-2 flex items-center gap-2 cursor-pointer transition-colors ${
+                className={`group relative rounded-xl px-3 py-2.5 flex items-center gap-2
+                            cursor-pointer transition-all duration-150 text-sm min-h-[44px] ${
                   activeConversationId === convo.id
-                    ? 'bg-brand-950/40 text-brand-400 border border-brand-500/40 shadow-[inset_2px_0_0_#ff6b00]'
-                    : 'text-slate-400 hover:bg-surface-900 hover:text-slate-200 border border-transparent'
+                    ? 'sidebar-item-active'
+                    : 'text-slate-400 hover:bg-white/[0.05] hover:text-slate-200'
                 }`}
                 onClick={() => {
                   if (editingId !== convo.id) {
@@ -141,11 +226,19 @@ export default function Sidebar({
                   }
                 }}
               >
-                <span className="text-[10px] text-slate-600 font-bold">#</span>
+                {/* Chat icon */}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     strokeWidth="1.8" className="flex-shrink-0 opacity-50">
+                  <path strokeLinecap="round" strokeLinejoin="round"
+                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0
+                           01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8
+                           9-8s9 3.582 9 8z" />
+                </svg>
 
                 {editingId === convo.id ? (
                   <input
-                    className="flex-1 bg-surface-900 border border-brand-500 text-white text-xs px-2 py-0.5 rounded focus:outline-none"
+                    className="flex-1 bg-surface-850 border border-accent-500/60 text-white
+                               text-sm px-2 py-0.5 rounded-md focus:outline-none"
                     value={editTitle}
                     onChange={(e) => setEditTitle(e.target.value)}
                     onBlur={() => handleRenameSubmit(convo.id)}
@@ -157,25 +250,23 @@ export default function Sidebar({
                     onClick={(e) => e.stopPropagation()}
                   />
                 ) : (
-                  <span className="flex-1 truncate text-xs font-mono">{convo.title}</span>
+                  <span className="flex-1 truncate">{convo.title}</span>
                 )}
 
-                {/* Action buttons (show on hover) */}
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex items-center gap-1 bg-surface-900 px-1 rounded border border-slate-800">
+                <div className="absolute right-2 top-1/2 -translate-y-1/2 hidden group-hover:flex
+                                items-center gap-1">
                   <button
                     onClick={(e) => { e.stopPropagation(); handleRenameStart(convo) }}
-                    className="p-1 hover:text-white"
+                    className="w-6 h-6 flex items-center justify-center rounded text-slate-500
+                               hover:text-slate-300 transition-colors"
                     title="Rename"
-                  >
-                    ✎
-                  </button>
+                  >✎</button>
                   <button
                     onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(convo.id) }}
-                    className="p-1 hover:text-red-400"
+                    className="w-6 h-6 flex items-center justify-center rounded text-slate-500
+                               hover:text-red-400 transition-colors"
                     title="Delete"
-                  >
-                    ×
-                  </button>
+                  >×</button>
                 </div>
               </motion.div>
             ))}
@@ -183,18 +274,19 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* User info / Logout */}
-      <div className="p-3 border-t border-slate-800 bg-surface-900/50">
-        <div className="flex items-center justify-between px-2 py-1">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-6 h-6 bg-brand-500 text-surface-950 font-bold rounded flex items-center justify-center text-xs">
-              {user?.username?.[0]?.toUpperCase() || 'U'}
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-slate-200 truncate">{user?.username}</p>
-              <p className="text-[10px] text-slate-500 truncate">{user?.email}</p>
-            </div>
+      {/* User / logout */}
+      <div className="p-3 border-t border-white/[0.06] flex-shrink-0">
+        <div className="flex items-center gap-2.5 px-1">
+          {/* Avatar — flat neutral circle */}
+          <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center
+                          text-xs font-bold text-white bg-slate-700">
+            {user?.username?.[0]?.toUpperCase() || 'U'}
           </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-slate-200 truncate">{user?.username}</p>
+            <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
+          </div>
+          {/* Logout */}
           <button
             onClick={() => { navigate('/settings'); onClose() }}
             className="p-1.5 rounded hover:bg-surface-800 text-slate-500 hover:text-white transition-colors font-bold text-xs"
@@ -205,10 +297,15 @@ export default function Sidebar({
 
           <button
             onClick={logout}
-            className="p-1.5 rounded hover:bg-surface-800 text-slate-500 hover:text-red-400 transition-colors font-bold text-xs"
-            title="Logout"
+            className="w-7 h-7 flex items-center justify-center rounded-lg
+                       text-slate-500 hover:text-red-400 hover:bg-red-500/10
+                       transition-all duration-150"
+            title="Sign out"
           >
-            [LOGOUT]
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
           </button>
         </div>
       </div>
@@ -217,6 +314,15 @@ export default function Sidebar({
 
   return (
     <>
+      {showConnModal && (
+        <ConnectionModal
+          onClose={() => setShowConnModal(false)}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: ['connections'] })
+            setShowConnModal(false)
+          }}
+        />
+      )}
       {/* Mobile overlay */}
       <AnimatePresence>
         {isOpen && (
@@ -230,8 +336,9 @@ export default function Sidebar({
         )}
       </AnimatePresence>
 
-      {/* Desktop sidebar */}
-      <aside className="hidden md:flex md:w-64 flex-col bg-surface-900 border-r border-white/5 h-screen flex-shrink-0">
+      {/* Desktop sidebar — solid surface */}
+      <aside className="hidden md:flex md:w-60 flex-col border-r border-white/[0.07] h-dvh flex-shrink-0
+                        bg-surface-900">
         {sidebarContent}
       </aside>
 
@@ -243,7 +350,8 @@ export default function Sidebar({
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-            className="md:hidden fixed left-0 top-0 bottom-0 w-72 bg-surface-900 border-r border-white/5 z-40 flex flex-col"
+            className="md:hidden fixed left-0 top-0 bottom-0 w-72 bg-surface-900
+                       border-r border-white/[0.06] z-40 flex flex-col"
           >
             {sidebarContent}
           </motion.aside>

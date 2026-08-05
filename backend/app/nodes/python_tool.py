@@ -54,7 +54,7 @@ async def python_tool_node(state: AgentState) -> AgentState:
     question = state.get("question", "")
 
     # ── Step 1: LLM generates the analysis code ───────────────────────────────
-    llm = get_llm()
+    llm = get_llm(state["groq_api_key"])
     data_preview = json.dumps(data[:10], indent=2, default=str)
 
     messages = [

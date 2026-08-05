@@ -1,395 +1,855 @@
 /**
  * pages/Landing.tsx
- * Obsidian Cyber-Terminal (Enterprise Data Cockpit v2)
- * Authentic database engineering aesthetic with schema topology previews, AST diagnostic logs, and technical telemetry framing.
+ * Design adapted from landing2.tsx reference.
+ * Uses CSS tokens from tailwind.config.js (canvas, ink, muted, line, ok, warn)
+ * and component classes from index.css (.pill, .dot, .card, .btn-primary, etc.)
  */
-import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
-import { useAuth } from '../lib/auth'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
+import {
+  Database,
+  Table2,
+  ShieldCheck,
+  UserCheck,
+  Check,
+  X,
+  MessageSquare,
+  Zap,
+  Eye,
+  ArrowRight,
+  Sparkles,
+  TrendingUp,
+  Code2,
+  Layers,
+  Terminal,
+  Quote,
+  ChevronDown,
+} from 'lucide-react'
 
-const DIAGNOSTIC_QUERIES = [
-  {
-    prompt: "Show me the top 5 artists by track count",
-    prunedTables: ["Artist (11 cols)", "Album (3 cols)", "Track (8 cols)"],
-    excludedTables: ["Invoice", "Customer", "Employee", "Playlist"],
-    sql: "SELECT Artist.Name, COUNT(Track.TrackId) AS TrackCount FROM Artist JOIN Album ON Artist.ArtistId = Album.ArtistId JOIN Track ON Album.AlbumId = Track.AlbumId GROUP BY Artist.ArtistId ORDER BY TrackCount DESC LIMIT 5;",
-    latency: "142ms",
-    rows: [
-      { artist: "Iron Maiden", tracks: 213 },
-      { artist: "U2", tracks: 135 },
-      { artist: "Led Zeppelin", tracks: 114 },
-      { artist: "Metallica", tracks: 112 },
-      { artist: "Lost", tracks: 92 },
-    ]
-  },
-  {
-    prompt: "Plot total sales revenue by country as a bar chart",
-    prunedTables: ["Invoice (9 cols)", "Customer (13 cols)"],
-    excludedTables: ["Track", "Artist", "Playlist", "Genre"],
-    sql: "SELECT Customer.Country, ROUND(SUM(Invoice.Total), 2) AS TotalRevenue FROM Invoice JOIN Customer ON Invoice.CustomerId = Customer.CustomerId GROUP BY Customer.Country ORDER BY TotalRevenue DESC LIMIT 5;",
-    latency: "189ms",
-    rows: [
-      { artist: "USA", tracks: "$523.06" },
-      { artist: "Canada", tracks: "$303.96" },
-      { artist: "France", tracks: "$195.10" },
-      { artist: "Brazil", tracks: "$190.10" },
-      { artist: "Germany", tracks: "$156.48" },
-    ]
-  },
-  {
-    prompt: "Which genres have more than 100 tracks in the catalog?",
-    prunedTables: ["Genre (2 cols)", "Track (8 cols)"],
-    excludedTables: ["Invoice", "Artist", "Album", "Customer"],
-    sql: "SELECT Genre.Name, COUNT(Track.TrackId) AS TotalTracks FROM Genre JOIN Track ON Genre.GenreId = Track.GenreId GROUP BY Genre.GenreId HAVING COUNT(Track.TrackId) > 100 ORDER BY TotalTracks DESC;",
-    latency: "118ms",
-    rows: [
-      { artist: "Rock", tracks: 1297 },
-      { artist: "Latin", tracks: 579 },
-      { artist: "Metal", tracks: 374 },
-      { artist: "Alternative & Punk", tracks: 332 },
-      { artist: "Jazz", tracks: 130 },
-    ]
-  }
-]
+/* ─── Page Shell ─────────────────────────────────────────────────────────── */
 
 export default function Landing() {
-  const { user } = useAuth()
-  const navigate = useNavigate()
-  const [queryIndex, setQueryIndex] = useState(0)
+  return (
+    <div className="landing-page min-h-screen font-sans antialiased">
+      <Nav />
+      <Hero />
+      <Stats />
+      <HowItWorks />
+      <LiveDemo />
+      <Comparison />
+      <StackCredit />
+      <Testimonials />
+      <FAQ />
+      <FinalCTA />
+      <Footer />
+    </div>
+  )
+}
 
-  // Rotate diagnostic queries
+/* ─── Nav ─────────────────────────────────────────────────────────────────── */
+
+function Nav() {
+  const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
-    const timer = setInterval(() => {
-      setQueryIndex((prev) => (prev + 1) % DIAGNOSTIC_QUERIES.length)
-    }, 5000)
-    return () => clearInterval(timer)
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    window.addEventListener('scroll', onScroll)
+    return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  const currentQ = DIAGNOSTIC_QUERIES[queryIndex]
+  return (
+    <header
+      className={`sticky top-0 z-30 transition-all duration-300 ${
+        scrolled
+          ? 'border-b border-line bg-canvas/90 backdrop-blur-md'
+          : 'border-b border-transparent bg-transparent'
+      }`}
+    >
+      <div className="mx-auto flex h-16 max-w-page items-center justify-between px-6">
+        <Link to="/" className="flex items-center gap-2">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg text-white" style={{ backgroundColor: '#111214' }}>
+            <Database className="h-4 w-4" />
+          </span>
+          <span className="text-sm font-semibold tracking-tight" style={{ color: '#111214' }}>SQL Cockpit</span>
+        </Link>
+        <nav className="hidden items-center gap-7 text-sm md:flex" style={{ color: '#5B6270' }}>
+          <a href="#how" className="transition-colors" style={{ color: 'inherit' }}>How it works</a>
+          <a href="#demo" className="transition-colors" style={{ color: 'inherit' }}>Live demo</a>
+          <a href="#compare" className="transition-colors" style={{ color: 'inherit' }}>Compare</a>
+          <a href="#faq" className="transition-colors" style={{ color: 'inherit' }}>FAQ</a>
+        </nav>
+        <div className="flex items-center gap-2">
+          <Link to="/login" className="btn-ghost text-sm">Sign in</Link>
+          <Link to="/signup" className="btn-primary">Get started</Link>
+        </div>
+      </div>
+    </header>
+  )
+}
+
+/* ─── Hero ────────────────────────────────────────────────────────────────── */
+
+function Hero() {
+  return (
+    <section className="relative overflow-hidden">
+      <div className="hero-grid-bg absolute inset-0" />
+      <div className="hero-glow absolute inset-0" />
+      <div className="animate-float absolute -left-10 top-32 hidden h-24 w-24 rounded-full bg-accent-600/8 blur-2xl lg:block" />
+      <div className="animate-float-delayed absolute -right-10 top-48 hidden h-32 w-32 rounded-full bg-accent-600/10 blur-3xl lg:block" />
+
+      <div className="relative mx-auto max-w-page px-6 pt-20 pb-16 text-center">
+        <span className="pill animate-fade-up">
+          <span className="dot animate-pulse-dot" style={{ backgroundColor: '#15803d' }} />
+          LangGraph · Groq · PostgreSQL · sqlglot
+        </span>
+
+        <h1
+          className="mx-auto mt-6 max-w-3xl animate-fade-up text-4xl font-semibold leading-tight tracking-tight sm:text-6xl"
+          style={{ color: '#111214', animationDelay: '0.05s' }}
+        >
+          Ask your database a question{' '}
+          <span className="animate-gradient-pan bg-gradient-to-r from-accent-600 to-cyan-500 bg-clip-text text-transparent">
+            in plain English
+          </span>
+        </h1>
+
+        <p
+          className="mx-auto mt-5 max-w-xl animate-fade-up text-base leading-relaxed sm:text-lg"
+          style={{ color: '#5B6270', animationDelay: '0.1s' }}
+        >
+          SQL Cockpit selects the relevant tables, writes SQL, and shows it to you before running
+          anything. Approve it, and it returns the results as a table or chart — with a plain-English
+          summary of what it found.
+        </p>
+
+        <div
+          className="mt-8 flex animate-fade-up flex-col items-center justify-center gap-3 sm:flex-row"
+          style={{ animationDelay: '0.15s' }}
+        >
+          <Link to="/signup" className="btn-primary w-full sm:w-auto">
+            Start for free <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link to="/login" className="btn-outline w-full sm:w-auto">
+            Sign in
+          </Link>
+        </div>
+
+        <p className="mt-3 animate-fade-up text-xs" style={{ animationDelay: '0.2s', color: '#5B6270' }}>
+          No credit card required · Demo database included
+        </p>
+
+        {/* Browser-chrome preview with typing demo */}
+        <div
+          className="mx-auto mt-14 max-w-4xl animate-fade-up overflow-hidden rounded-xl border border-line bg-white shadow-hair"
+          style={{ animationDelay: '0.25s' }}
+        >
+          <div className="flex items-center gap-2 border-b border-line bg-canvas px-4 py-3">
+            <span className="dot bg-[#FF5F57]" />
+            <span className="dot bg-[#FEBC2E]" />
+            <span className="dot bg-[#28C840]" />
+            <div className="ml-3 flex-1">
+              <div className="mx-auto max-w-md rounded-md border border-line bg-white px-3 py-1 text-center text-xs text-muted">
+                cockpit.app/console
+              </div>
+            </div>
+          </div>
+          <div className="aspect-[16/9]" style={{ background: 'linear-gradient(to bottom, #FAFAF9, #ffffff)' }}>
+            <TypingDemo />
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── Typing Demo ─────────────────────────────────────────────────────────── */
+
+function TypingDemo() {
+  const question = 'Which 5 customers spent the most last quarter?'
+  const [typed, setTyped] = useState('')
+  const [phase, setPhase] = useState<'typing' | 'thinking' | 'done'>('typing')
+
+  useEffect(() => {
+    let i = 0
+    const interval = setInterval(() => {
+      i++
+      setTyped(question.slice(0, i))
+      if (i >= question.length) {
+        clearInterval(interval)
+        setTimeout(() => setPhase('thinking'), 400)
+        setTimeout(() => setPhase('done'), 2000)
+      }
+    }, 45)
+    return () => clearInterval(interval)
+  }, [])
 
   return (
-    <div className="min-h-screen bg-surface-950 text-slate-100 relative overflow-x-hidden selection:bg-brand-500 selection:text-surface-950 font-sans">
-      {/* ── Background Technical Grid & Spec Lines ───────────────────────────── */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1c1f26_1px,transparent_1px),linear-gradient(to_bottom,#1c1f26_1px,transparent_1px)] bg-[size:32px_32px] opacity-40" />
-        <div className="absolute top-0 left-[10%] w-[1px] h-full bg-slate-800/60" />
-        <div className="absolute top-0 right-[10%] w-[1px] h-full bg-slate-800/60" />
-        {/* Subtle orange/amber ambient glow */}
-        <div className="absolute top-[15%] left-[25%] w-[500px] h-[500px] bg-brand-600/5 rounded-full blur-[140px]" />
-        <div className="absolute bottom-[10%] right-[20%] w-[400px] h-[400px] bg-emerald-600/5 rounded-full blur-[140px]" />
+    <div className="flex h-full flex-col gap-3 p-5 text-left sm:p-7">
+      {/* User bubble */}
+      <div
+        className="ml-auto max-w-md self-end rounded-2xl rounded-br-sm px-4 py-2.5 text-sm"
+        style={{ backgroundColor: '#111214', color: '#ffffff' }}
+      >
+        {typed}
+        {phase === 'typing' && <span className="animate-blink">|</span>}
       </div>
 
-      {/* ── Top Diagnostic Header Bar ────────────────────────────────────────── */}
-      <header className="relative z-20 border-b border-slate-800 bg-surface-950/90 backdrop-blur-md sticky top-0 font-mono text-xs">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-brand-500 rounded flex items-center justify-center text-surface-950 font-bold shadow-[0_0_12px_rgba(255,107,0,0.4)]">
-              SQL
-            </div>
-            <div className="flex flex-col">
-              <span className="font-bold tracking-tight text-white flex items-center gap-2 uppercase">
-                Chinook <span className="text-brand-500">// DATA COCKPIT v2</span>
-              </span>
-              <span className="text-[10px] text-slate-500 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                SYS_STATUS: ONLINE // POSTGRESQL_15 // RAG_PRUNER_ACTIVE
-              </span>
-            </div>
-          </div>
-
-          <nav className="hidden md:flex items-center gap-6 text-slate-400">
-            <a href="#diagnostic" className="hover:text-brand-400 transition-colors">[01_DIAGNOSTICS]</a>
-            <a href="#architecture" className="hover:text-brand-400 transition-colors">[02_AST_ENGINE]</a>
-            <a href="#sandbox" className="hover:text-brand-400 transition-colors">[03_SANDBOX_SECURITY]</a>
-          </nav>
-
-          <div className="flex items-center gap-3">
-            {user ? (
-              <button
-                onClick={() => navigate('/chat')}
-                className="btn-primary flex items-center gap-2 py-2 px-4 text-xs"
-              >
-                <span>[OPEN_COCKPIT]</span>
-                <span>→</span>
-              </button>
-            ) : (
-              <>
-                <Link to="/login" className="btn-ghost text-xs py-2 px-3">[LOGIN_TERMINAL]</Link>
-                <Link
-                  to="/signup"
-                  className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5"
-                >
-                  <span>[INITIALIZE_AGENT]</span>
-                  <span className="text-surface-950 font-bold">⚡</span>
-                </Link>
-              </>
-            )}
-          </div>
+      {/* Thinking indicator */}
+      {phase === 'thinking' && (
+        <div
+          className="flex max-w-md items-center gap-2 rounded-2xl rounded-bl-sm border px-4 py-3 animate-fade-in"
+          style={{ borderColor: '#e5e7eb', backgroundColor: '#ffffff', color: '#5B6270' }}
+        >
+          <span className="flex gap-1">
+            <span className="h-2 w-2 animate-pulse-dot rounded-full bg-accent-600" style={{ animationDelay: '0s' }} />
+            <span className="h-2 w-2 animate-pulse-dot rounded-full bg-accent-600" style={{ animationDelay: '0.2s' }} />
+            <span className="h-2 w-2 animate-pulse-dot rounded-full bg-accent-600" style={{ animationDelay: '0.4s' }} />
+          </span>
+          <span className="text-xs">Selecting tables, writing SQL…</span>
         </div>
-      </header>
+      )}
 
-      {/* ── Hero Section ─────────────────────────────────────────────────────── */}
-      <main className="relative z-10">
-        <section className="pt-20 pb-16 px-6 max-w-6xl mx-auto">
-          {/* Top telemetry index */}
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-10 font-mono text-xs text-slate-500 uppercase">
-            <span>[SYS_ID: CHINOOK_LANGGRAPH_01]</span>
-            <span className="text-emerald-400 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" />
-              ZERO_HALLUCINATION_GUARD: ENABLED
-            </span>
-            <span>[DIALECT: ANSI_SQL / PG]</span>
-          </div>
-
-          <div className="max-w-4xl">
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="inline-flex items-center gap-2 px-3 py-1 bg-surface-900 border border-slate-800 text-brand-400 text-xs font-mono mb-6 uppercase tracking-wider"
-            >
-              <span>⚡</span>
-              <span>Autonomous SQL Data Engineering Instrument</span>
-            </motion.div>
-
-            <motion.h1
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.1 }}
-              className="text-4xl md:text-6xl font-bold text-white tracking-tight leading-[1.1] mb-6 font-mono"
-            >
-              Turn natural queries into <span className="text-brand-500 underline decoration-slate-800 underline-offset-8">precision SQL diagnostics</span> & visual analytics.
-            </motion.h1>
-
-            <motion.p
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.2 }}
-              className="text-base md:text-lg text-slate-400 max-w-2xl mb-10 leading-relaxed font-sans"
-            >
-              An enterprise data cockpit that dynamically prunes schema tokens, self-corrects via AST syntax compilation, and executes complex analytics inside an isolated Python subprocess sandbox.
-            </motion.p>
-
-            <motion.div
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.3 }}
-              className="flex flex-wrap items-center gap-4 mb-16 font-mono text-xs"
-            >
-              <button
-                onClick={() => navigate(user ? '/chat' : '/signup')}
-                className="btn-primary py-3.5 px-6 text-sm flex items-center gap-2 group"
-              >
-                <span>[INITIALIZE_COCKPIT]</span>
-                <span className="group-hover:translate-x-1 transition-transform">→</span>
-              </button>
-              <a
-                href="#diagnostic"
-                className="btn-ghost py-3.5 px-6 text-sm flex items-center gap-2"
-              >
-                <span>[VIEW_AST_DIAGNOSTICS]</span>
-              </a>
-            </motion.div>
-          </div>
-
-          {/* ── Live Interactive Schema Topology & Diagnostic Terminal ──────────── */}
-          <motion.div
-            id="diagnostic"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-            className="border border-slate-800 bg-surface-900 rounded-md shadow-2xl overflow-hidden relative"
+      {/* Response */}
+      {phase === 'done' && (
+        <>
+          <div
+            className="max-w-md animate-slide-in-left rounded-2xl rounded-bl-sm border px-4 py-3"
+            style={{ borderColor: '#e5e7eb', backgroundColor: '#ffffff', color: '#111214' }}
           >
-            {/* Corner crosshairs decoration */}
-            <div className="absolute top-0 left-0 w-2 h-2 border-t-2 border-l-2 border-brand-500 z-30" />
-            <div className="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-brand-500 z-30" />
-            <div className="absolute bottom-0 left-0 w-2 h-2 border-b-2 border-l-2 border-brand-500 z-30" />
-            <div className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-brand-500 z-30" />
-
-            {/* Terminal Titlebar */}
-            <div className="bg-surface-950 px-4 py-3 border-b border-slate-800 flex items-center justify-between font-mono text-xs">
-              <div className="flex items-center gap-3">
-                <span className="text-brand-500 font-bold">/// DIAGNOSTIC_TERMINAL_V2</span>
-                <span className="text-slate-600">|</span>
-                <span className="text-slate-400">TARGET: chinook_music_store.postgresql</span>
-              </div>
-              <div className="flex items-center gap-4 text-slate-400">
-                <span>LATENCY: <strong className="text-emerald-400">{currentQ.latency}</strong></span>
-                <span>AST_STATUS: <strong className="text-emerald-400">VERIFIED_OK</strong></span>
-                <span className="w-2 h-2 rounded-full bg-brand-500 animate-ping" />
-              </div>
-            </div>
-
-            {/* Terminal Body Grid */}
-            <div className="grid lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-800">
-              {/* Left Column: Schema Pruning Topology & Prompt */}
-              <div className="lg:col-span-5 p-6 bg-surface-900/50 flex flex-col justify-between font-mono text-xs">
-                <div className="space-y-6">
-                  <div>
-                    <div className="text-slate-500 uppercase tracking-wider mb-2 text-[10px]">[01_INPUT_PROMPT]</div>
-                    <div className="bg-surface-950 border border-slate-800 p-3 rounded text-brand-300 font-medium">
-                      <AnimatePresence mode="wait">
-                        <motion.div
-                          key={queryIndex}
-                          initial={{ opacity: 0, x: -5 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: 5 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          &gt; "{currentQ.prompt}"
-                        </motion.div>
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                  {/* Schema topology tree */}
-                  <div>
-                    <div className="text-slate-500 uppercase tracking-wider mb-2 text-[10px]">[02_DYNAMIC_SCHEMA_PRUNER]</div>
-                    <div className="space-y-1.5 bg-surface-950 p-3 rounded border border-slate-800">
-                      <div className="text-[11px] text-slate-400 mb-2">Selected Catalog Nodes (Token Optimized):</div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {currentQ.prunedTables.map((t, idx) => (
-                          <span key={idx} className="bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 rounded text-[11px] flex items-center gap-1">
-                            <span className="text-emerald-400">✓</span> {t}
-                          </span>
-                        ))}
-                      </div>
-                      <div className="pt-2 border-t border-slate-900 flex flex-wrap gap-1.5 opacity-40">
-                        {currentQ.excludedTables.map((t, idx) => (
-                          <span key={idx} className="bg-surface-900 text-slate-400 px-2 py-0.5 rounded text-[10px] border border-slate-800">
-                            ✗ {t}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-6 border-t border-slate-800/80 mt-6 flex items-center justify-between text-[11px] text-slate-500">
-                  <span>PRUNING_EFFICIENCY: 78% TOKEN SAVINGS</span>
-                  <span className="text-brand-400 font-bold">RAG_OK</span>
-                </div>
-              </div>
-
-              {/* Right Column: AST Compilation & Subprocess Output */}
-              <div className="lg:col-span-7 p-6 bg-surface-950 flex flex-col justify-between font-mono text-xs">
-                <div className="space-y-6">
-                  {/* SQL AST output */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-slate-500 uppercase tracking-wider text-[10px]">[03_AST_COMPILED_SQL]</span>
-                      <span className="text-[10px] text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/20">0 SYNTAX ERRORS // SELF_CORRECTED</span>
-                    </div>
-                    <div className="bg-surface-900 border border-slate-800 p-3 rounded text-emerald-400 text-xs overflow-x-auto leading-relaxed">
-                      <code>{currentQ.sql}</code>
-                    </div>
-                  </div>
-
-                  {/* High speed grid simulation */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-slate-500 uppercase tracking-wider text-[10px]">[04_SUBPROCESS_SANDBOX_RESULT]</span>
-                      <span className="text-[10px] text-brand-400">TANSTACK_HIGH_SPEED_GRID // PLOTLY_SERIALIZED</span>
-                    </div>
-                    <div className="border border-slate-800 rounded overflow-hidden bg-surface-900/50">
-                      <div className="bg-surface-850 px-3 py-1.5 border-b border-slate-800 text-[11px] font-bold text-slate-300 flex justify-between">
-                        <span>{queryIndex === 1 ? "COUNTRY_NAME" : "ARTIST_NAME"}</span>
-                        <span>{queryIndex === 1 ? "TOTAL_REVENUE_USD" : "TRACK_COUNT_METRIC"}</span>
-                      </div>
-                      <div className="divide-y divide-slate-800/60 text-[11px]">
-                        {currentQ.rows.map((r, idx) => (
-                          <div key={idx} className="px-3 py-1.5 flex justify-between items-center hover:bg-surface-850 transition-colors">
-                            <span className="text-slate-200">{r.artist}</span>
-                            <span className="text-brand-400 font-bold">{r.tracks}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pt-6 border-t border-slate-800 mt-6 flex items-center justify-between text-[11px] text-slate-500">
-                  <span>EXECUTION_CONTAINER: ISOLATED_PYTHON_SUBPROCESS</span>
-                  <span className="text-emerald-400 font-bold">STATUS: COMPLETED</span>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        </section>
-
-        {/* ── Architecture & Technical Capabilities ──────────────────────────── */}
-        <section id="architecture" className="py-20 px-6 max-w-6xl mx-auto border-t border-slate-800 font-mono">
-          <div className="mb-12">
-            <span className="text-xs text-brand-500 font-bold uppercase tracking-widest block mb-2">// SYSTEM_MODULES & SPECIFICATIONS</span>
-            <h2 className="text-3xl md:text-4xl font-bold text-white tracking-tight font-sans">
-              Engineered for absolute accuracy, safety, and speed.
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="terminal-panel p-6 border-slate-800 hover:border-brand-500/50 transition-colors group">
-              <div className="text-xs text-brand-500 font-bold mb-3">[MOD_01: SCHEMA_PRUNING]</div>
-              <h3 className="text-lg font-bold text-white mb-3 font-sans">Dynamic RAG Catalog Pruning</h3>
-              <p className="text-slate-400 text-xs leading-relaxed font-sans">
-                Large enterprise databases exceed LLM context windows. Our pruning engine analyzes semantic intent and foreign key constraints to inject only the relevant table DDLs and sample rows per query.
-              </p>
-            </div>
-
-            <div className="terminal-panel p-6 border-slate-800 hover:border-brand-500/50 transition-colors group">
-              <div className="text-xs text-emerald-400 font-bold mb-3">[MOD_02: AST_GUARD]</div>
-              <h3 className="text-lg font-bold text-white mb-3 font-sans">AST Syntax Verification Loop</h3>
-              <p className="text-slate-400 text-xs leading-relaxed font-sans">
-                Queries are compiled through an Abstract Syntax Tree (AST) validator before touching the production database. Syntax errors or hallucinated columns trigger an automatic self-correcting retry loop.
-              </p>
-            </div>
-
-            <div className="terminal-panel p-6 border-slate-800 hover:border-brand-500/50 transition-colors group">
-              <div className="text-xs text-violet-400 font-bold mb-3">[MOD_03: SUBPROCESS_SANDBOX]</div>
-              <h3 className="text-lg font-bold text-white mb-3 font-sans">Process-Isolated Python Execution</h3>
-              <p className="text-slate-400 text-xs leading-relaxed font-sans">
-                Data transformations and Plotly visual chart generation execute inside an isolated Python subprocess with strict CPU, memory, and timeout limits to prevent resource starvation or DoS attacks.
-              </p>
-            </div>
-          </div>
-        </section>
-
-        {/* ── CTA Banner ──────────────────────────────────────────────────────── */}
-        <section id="sandbox" className="py-16 px-6 max-w-5xl mx-auto mb-20 font-mono">
-          <div className="terminal-panel p-10 md:p-14 text-center border-brand-500/40 relative">
-            <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-brand-500" />
-            <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-brand-500" />
-            <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-brand-500" />
-            <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-brand-500" />
-
-            <span className="text-xs text-emerald-400 font-bold block mb-2">[READY_FOR_DEPLOYMENT]</span>
-            <h3 className="text-3xl md:text-4xl font-bold text-white mb-4 tracking-tight font-sans">
-              Initialize your autonomous SQL console.
-            </h3>
-            <p className="text-slate-400 max-w-lg mx-auto mb-8 text-xs leading-relaxed font-sans">
-              Experience zero-hallucination data querying with interactive high-speed TanStack tables and Plotly analytics.
+            <p className="text-xs" style={{ color: '#5B6270' }}>Selecting tables: invoices, customers</p>
+            <p className="mt-1 flex items-center gap-1 text-xs" style={{ color: '#15803d' }}>
+              <Check className="h-3 w-3" /> AST validated · read-only transaction
             </p>
-            <button
-              onClick={() => navigate(user ? '/chat' : '/signup')}
-              className="btn-primary py-4 px-8 text-xs font-bold uppercase tracking-widest shadow-xl shadow-brand-500/20 scale-105 hover:scale-110 transition-transform"
+            <pre
+              className="mt-2 overflow-hidden rounded-md px-3 py-2 font-mono text-[11px] leading-relaxed"
+              style={{ backgroundColor: '#111214', color: 'rgba(255,255,255,0.9)' }}
             >
-              [INITIALIZE_AGENT_WORKSPACE →]
-            </button>
+{`SELECT c.FullName, SUM(i.Total) AS spend
+FROM Invoice i
+JOIN Customer c ON c.CustomerId = i.CustomerId
+WHERE i.InvoiceDate >= '2024-01-01'
+GROUP BY c.FullName
+ORDER BY spend DESC
+LIMIT 5;`}
+            </pre>
           </div>
-        </section>
-      </main>
+          <div className="max-w-md animate-fade-up overflow-hidden rounded-lg border" style={{ borderColor: '#e5e7eb', animationDelay: '0.3s' }}>
+            <div className="grid grid-cols-2 text-xs" style={{ gap: '1px', backgroundColor: '#e5e7eb' }}>
+              <div className="px-3 py-2 font-medium" style={{ backgroundColor: '#ffffff', color: '#111214' }}>Customer</div>
+              <div className="px-3 py-2 text-right font-medium" style={{ backgroundColor: '#ffffff', color: '#111214' }}>Spend</div>
+              <div className="px-3 py-2" style={{ backgroundColor: '#ffffff', color: '#5B6270' }}>Helena Holý</div>
+              <div className="px-3 py-2 text-right" style={{ backgroundColor: '#ffffff', color: '#5B6270' }}>$49.80</div>
+              <div className="px-3 py-2" style={{ backgroundColor: '#ffffff', color: '#5B6270' }}>Richard Cunningham</div>
+              <div className="px-3 py-2 text-right" style={{ backgroundColor: '#ffffff', color: '#5B6270' }}>$47.62</div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
 
-      {/* ── Footer ───────────────────────────────────────────────────────────── */}
-      <footer className="border-t border-slate-800 py-10 px-6 text-center font-mono text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-slate-400 font-bold">
-            <span>CHINOOK // DATA COCKPIT v2.0</span>
+/* ─── Stats Strip ─────────────────────────────────────────────────────────── */
+
+function Stats() {
+  const stats = [
+    { value: '3-layer', label: 'Validation pipeline' },
+    { value: '0', label: 'Queries run without approval' },
+    { value: '< 2s', label: 'From question to SQL' },
+    { value: '100%', label: 'Read-only by default' },
+  ]
+  return (
+    <section className="border-y border-line bg-white">
+      <div className="mx-auto grid max-w-page grid-cols-2 gap-px bg-line sm:grid-cols-4">
+        {stats.map((s, i) => (
+          <div
+            key={s.label}
+            className="bg-white px-6 py-8 text-center animate-fade-up"
+            style={{ animationDelay: `${i * 0.08}s` }}
+          >
+            <p className="text-2xl font-semibold tracking-tight text-ink sm:text-3xl">{s.value}</p>
+            <p className="mt-1 text-xs text-muted">{s.label}</p>
           </div>
-          <div>
-            Powered by Google DeepMind Agent Architecture // AST Guard // Subprocess Sandbox
+        ))}
+      </div>
+    </section>
+  )
+}
+
+/* ─── How It Works ────────────────────────────────────────────────────────── */
+
+function HowItWorks() {
+  const steps = [
+    {
+      icon: <MessageSquare className="h-5 w-5" />,
+      step: '01',
+      title: 'Ask in plain English',
+      desc: 'Type a question like you would ask a colleague. No SQL syntax, no table names to memorize.',
+    },
+    {
+      icon: <Layers className="h-5 w-5" />,
+      step: '02',
+      title: 'Agent selects tables',
+      desc: 'The LangGraph agent reads your schema and picks only the tables that matter — it never guesses blindly.',
+    },
+    {
+      icon: <Code2 className="h-5 w-5" />,
+      step: '03',
+      title: 'SQL is generated & validated',
+      desc: 'Every query is parsed with sqlglot, checked for safety, and marked read-only before you ever see it.',
+    },
+    {
+      icon: <UserCheck className="h-5 w-5" />,
+      step: '04',
+      title: 'You approve, it runs',
+      desc: 'See the exact SQL, approve it, and get results as a table or chart with a plain-English summary.',
+    },
+  ]
+
+  return (
+    <section id="how" className="border-b border-line bg-canvas">
+      <div className="mx-auto max-w-page px-6 py-20">
+        <div className="mx-auto max-w-2xl text-center">
+          <span className="pill animate-fade-up">
+            <Sparkles className="h-3 w-3 text-accent-600" /> How it works
+          </span>
+          <h2
+            className="mt-5 animate-fade-up text-3xl font-semibold tracking-tight text-ink"
+            style={{ animationDelay: '0.05s' }}
+          >
+            Four steps from question to answer
+          </h2>
+          <p className="mt-3 animate-fade-up text-sm text-muted" style={{ animationDelay: '0.1s' }}>
+            Every query goes through a structured pipeline — so you get accurate results, not confident guesses.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {steps.map((s, i) => (
+            <div
+              key={s.step}
+              className="card-light animate-fade-up p-6 transition-all duration-200 hover:-translate-y-1 hover:border-line-strong hover:shadow-hair"
+              style={{ animationDelay: `${i * 0.08}s` }}
+            >
+              <div className="flex items-center justify-between">
+                <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-600/10 text-accent-600">
+                  {s.icon}
+                </span>
+                <span className="font-mono text-xs font-semibold text-line-strong">{s.step}</span>
+              </div>
+              <h3 className="mt-4 text-sm font-semibold text-ink">{s.title}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-muted">{s.desc}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Feature deep-dive cards */}
+        <div className="mt-6 grid animate-fade-up gap-6 md:grid-cols-3" style={{ animationDelay: '0.1s' }}>
+          <FeatureCard
+            icon={<Table2 className="h-4 w-4" />}
+            title="Schema-aware table selection"
+            desc="The agent reads your schema and picks only the tables that matter, so it doesn't guess blindly."
+          >
+            <SchemaMock />
+          </FeatureCard>
+          <FeatureCard
+            icon={<ShieldCheck className="h-4 w-4" />}
+            title="AST validation before execution"
+            desc="Every query is parsed with sqlglot and checked for read-only safety before it ever touches your database."
+          >
+            <ChecklistMock />
+          </FeatureCard>
+          <FeatureCard
+            icon={<UserCheck className="h-4 w-4" />}
+            title="Human approval checkpoint"
+            desc="You see the SQL and approve it before it runs. Nothing executes without your explicit sign-off."
+          >
+            <ApprovalMock />
+          </FeatureCard>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function FeatureCard({
+  icon,
+  title,
+  desc,
+  children,
+}: {
+  icon: React.ReactNode
+  title: string
+  desc: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="card-light p-5 transition-all duration-200 hover:-translate-y-0.5 hover:border-line-strong">
+      <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-line text-muted">
+        {icon}
+      </span>
+      <h3 className="mt-3 text-sm font-semibold text-ink">{title}</h3>
+      <p className="mt-1 text-sm leading-relaxed text-muted">{desc}</p>
+      <div className="mt-4">{children}</div>
+    </div>
+  )
+}
+
+function SchemaMock() {
+  const rows = [
+    { name: 'invoices', match: 'high' },
+    { name: 'customers', match: 'high' },
+    { name: 'employees', match: 'low' },
+    { name: 'tracks', match: 'low' },
+  ]
+  return (
+    <div className="overflow-hidden rounded-lg border border-line">
+      <div className="grid grid-cols-2 gap-px bg-line text-xs">
+        <div className="bg-canvas px-3 py-2 font-medium text-muted">table</div>
+        <div className="bg-canvas px-3 py-2 text-right font-medium text-muted">match</div>
+        {rows.map((r) => (
+          <div key={r.name} className="contents">
+            <div className="bg-white px-3 py-2 font-mono text-[11px] text-ink">{r.name}</div>
+            <div className={`px-3 py-2 text-right text-[11px] font-medium ${r.match === 'high' ? 'text-ok' : 'text-muted'}`}>
+              {r.match}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ChecklistMock() {
+  const items = ['Syntax check', 'Read-only guard', 'Schema match']
+  return (
+    <ul className="space-y-2">
+      {items.map((it) => (
+        <li key={it} className="flex items-center gap-2 text-sm text-ink">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-ok-soft text-ok">
+            <Check className="h-3 w-3" />
+          </span>
+          {it}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+function ApprovalMock() {
+  return (
+    <div className="rounded-lg border border-warn/40 bg-warn-soft p-3">
+      <div className="flex items-center gap-2 text-xs font-medium text-warn">
+        <span className="dot bg-warn" /> Pending approval
+      </div>
+      <pre className="mt-2 overflow-hidden rounded-md bg-ink px-3 py-2 font-mono text-[10px] leading-relaxed text-white/90">
+{`SELECT * FROM large_events_log
+WHERE created_at > '2024-01-01';`}
+      </pre>
+      <div className="mt-3 flex gap-2">
+        <button className="btn-dark flex-1 py-1.5 text-xs">Approve</button>
+        <button className="btn-outline flex-1 py-1.5 text-xs">
+          <X className="h-3 w-3" /> Reject
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/* ─── Live Demo ───────────────────────────────────────────────────────────── */
+
+const exampleSQL: string[] = [
+  `SELECT c.FullName, SUM(i.Total) AS spend
+FROM Invoice i
+JOIN Customer c ON c.CustomerId = i.CustomerId
+GROUP BY c.FullName
+ORDER BY spend DESC
+LIMIT 10;`,
+  `SELECT
+  DATE_TRUNC('month', InvoiceDate) AS month,
+  SUM(Total) AS revenue
+FROM Invoice
+WHERE InvoiceDate >= NOW() - INTERVAL '12 months'
+GROUP BY month
+ORDER BY month;`,
+  `SELECT g.Name AS genre, SUM(il.Quantity) AS units
+FROM InvoiceLine il
+JOIN Track t ON t.TrackId = il.TrackId
+JOIN Genre g ON g.GenreId = t.GenreId
+JOIN Invoice i ON i.InvoiceId = il.InvoiceId
+JOIN Customer c ON c.CustomerId = i.CustomerId
+WHERE c.Country IN ('Germany','France','UK')
+GROUP BY g.Name
+ORDER BY units DESC;`,
+  `SELECT FirstName, LastName, HireDate, Title
+FROM Employee
+WHERE HireDate >= '2010-01-01'
+ORDER BY HireDate;`,
+  `SELECT BillingCountry, AVG(Total) AS avg_invoice
+FROM Invoice
+GROUP BY BillingCountry
+ORDER BY avg_invoice DESC;`,
+  `SELECT Email, COUNT(*) AS occurrences
+FROM Customer
+GROUP BY Email
+HAVING COUNT(*) > 1;`,
+]
+
+function LiveDemo() {
+  const examples = [
+    'Top 10 customers by total spend',
+    'Monthly revenue trend last 12 months',
+    'Which genres sell best in Europe?',
+    'List employees hired after 2010',
+    'Average invoice size by country',
+    'Find duplicate customer emails',
+  ]
+  const [active, setActive] = useState(0)
+
+  return (
+    <section id="demo" className="border-b border-line bg-white">
+      <div className="mx-auto max-w-page px-6 py-20">
+        <div className="mx-auto max-w-2xl text-center">
+          <span className="pill animate-fade-up">
+            <Terminal className="h-3 w-3 text-accent-600" /> Try the demo
+          </span>
+          <h2 className="mt-5 animate-fade-up text-3xl font-semibold tracking-tight text-ink" style={{ animationDelay: '0.05s' }}>
+            See what it can answer
+          </h2>
+          <p className="mt-3 animate-fade-up text-sm text-muted" style={{ animationDelay: '0.1s' }}>
+            These are real questions SQL Cockpit handles against the sample Chinook database. Click any to see the generated SQL.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-6 lg:grid-cols-2">
+          {/* Example picker */}
+          <div className="space-y-2">
+            {examples.map((q, i) => (
+              <button
+                key={q}
+                onClick={() => setActive(i)}
+                className={`flex w-full items-center gap-3 rounded-lg border px-4 py-3 text-left text-sm transition-all duration-200 ${
+                  active === i
+                    ? 'border-accent-600 bg-accent-600/5 text-ink'
+                    : 'border-line bg-white text-muted hover:border-line-strong hover:text-ink'
+                }`}
+              >
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-mono ${
+                  active === i ? 'bg-accent-600 text-white' : 'bg-canvas text-muted'
+                }`}>
+                  {i + 1}
+                </span>
+                <span className="flex-1">{q}</span>
+                <ArrowRight className={`h-4 w-4 shrink-0 transition-transform ${
+                  active === i ? 'translate-x-0 text-accent-600' : '-translate-x-1 opacity-0'
+                }`} />
+              </button>
+            ))}
+          </div>
+
+          {/* SQL output */}
+          <div
+            className="overflow-hidden rounded-xl border"
+            style={{ borderColor: '#e5e7eb', backgroundColor: '#111214', color: '#ffffff' }}
+          >
+            <div
+              className="flex items-center justify-between px-4 py-2.5"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.1)' }}
+            >
+              <span className="flex items-center gap-2 text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
+                <Code2 className="h-3.5 w-3.5" /> Generated SQL
+              </span>
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                style={{ backgroundColor: '#dcfce7', color: '#15803d' }}
+              >
+                <ShieldCheck className="h-3 w-3" /> Valid
+              </span>
+            </div>
+            <div className="p-4">
+              <pre
+                className="overflow-x-auto font-mono text-xs leading-relaxed animate-fade-in"
+                key={active}
+                style={{ color: 'rgba(255,255,255,0.9)' }}
+              >
+                {exampleSQL[active]}
+              </pre>
+            </div>
+            <div
+              className="flex items-center gap-2 px-4 py-2.5 text-xs"
+              style={{ borderTop: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}
+            >
+              <Zap className="h-3 w-3" style={{ color: '#2563eb' }} /> read-only · validated by sqlglot
+            </div>
           </div>
         </div>
-      </footer>
-    </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── Comparison ──────────────────────────────────────────────────────────── */
+
+function Comparison() {
+  const features = [
+    { label: 'Plain-English questions', us: true, them: false },
+    { label: 'Schema-aware table selection', us: true, them: false },
+    { label: 'AST validation before execution', us: true, them: false },
+    { label: 'Human approval checkpoint', us: true, them: false },
+    { label: 'Read-only by default', us: true, them: 'partial' as const },
+    { label: 'Plain-English result summary', us: true, them: false },
+    { label: 'Works with your existing PostgreSQL', us: true, them: true },
+    { label: 'No SQL knowledge required', us: true, them: false },
+  ]
+
+  return (
+    <section id="compare" className="border-b border-line bg-canvas">
+      <div className="mx-auto max-w-page px-6 py-20">
+        <div className="mx-auto max-w-2xl text-center">
+          <span className="pill animate-fade-up">
+            <TrendingUp className="h-3 w-3 text-accent-600" /> Why SQL Cockpit
+          </span>
+          <h2 className="mt-5 animate-fade-up text-3xl font-semibold tracking-tight text-ink" style={{ animationDelay: '0.05s' }}>
+            Built for teams that can't afford wrong data
+          </h2>
+        </div>
+
+        <div className="mx-auto mt-12 max-w-3xl animate-fade-up overflow-hidden rounded-xl border border-line" style={{ animationDelay: '0.1s' }}>
+          <div className="grid grid-cols-3 gap-px bg-line">
+            <div className="bg-white px-4 py-4 text-sm font-medium text-muted">Feature</div>
+            <div className="bg-accent-600/5 px-4 py-4 text-center text-sm font-semibold text-accent-600">SQL Cockpit</div>
+            <div className="bg-white px-4 py-4 text-center text-sm font-medium text-muted">Generic AI chat</div>
+          </div>
+          {features.map((f) => (
+            <div key={f.label} className="grid grid-cols-3 gap-px bg-line">
+              <div className="bg-white px-4 py-3.5 text-sm text-ink">{f.label}</div>
+              <div className="flex items-center justify-center bg-accent-600/5 px-4 py-3.5">
+                <Check className="h-4 w-4 text-ok" />
+              </div>
+              <div className="flex items-center justify-center bg-white px-4 py-3.5">
+                {f.them === true ? (
+                  <Check className="h-4 w-4 text-muted" />
+                ) : f.them === 'partial' ? (
+                  <span className="text-xs text-muted">Partial</span>
+                ) : (
+                  <X className="h-4 w-4 text-muted/40" />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── Stack Credit ────────────────────────────────────────────────────────── */
+
+function StackCredit() {
+  const stack = [
+    { name: 'LangGraph', desc: 'Agent orchestration' },
+    { name: 'Groq', desc: 'Fast inference' },
+    { name: 'PostgreSQL', desc: 'Your database' },
+    { name: 'sqlglot', desc: 'SQL parsing & validation' },
+    { name: 'FastAPI', desc: 'Backend API' },
+    { name: 'React', desc: 'Console UI' },
+  ]
+  return (
+    <section className="border-b border-line bg-white">
+      <div className="mx-auto max-w-page px-6 py-12">
+        <p className="text-center text-xs font-medium uppercase tracking-wider text-muted">Built with</p>
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+          {stack.map((s, i) => (
+            <span
+              key={s.name}
+              className="pill animate-fade-up transition-transform hover:scale-105"
+              style={{ animationDelay: `${i * 0.05}s` }}
+            >
+              <span className="font-medium text-ink">{s.name}</span>
+              <span className="text-muted">· {s.desc}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── Testimonials ────────────────────────────────────────────────────────── */
+
+function Testimonials() {
+  const quotes = [
+    {
+      quote: "Our analytics team pulls their own revenue numbers now. I haven't written a one-off query in weeks.",
+      name: 'Dana Whitfield',
+      role: 'Data Lead, Northwind Retail',
+    },
+    {
+      quote: 'The approval step is what sold me. I can see exactly what runs against production before it happens.',
+      name: 'Marcus Chen',
+      role: 'Senior DBA, Helios Health',
+    },
+    {
+      quote: "It picked the right tables on a 200-table schema. That's the part I expected to fail, and it didn't.",
+      name: 'Priya Nair',
+      role: 'Analytics Manager, Lumen SaaS',
+    },
+  ]
+  return (
+    <section className="border-b border-line bg-canvas">
+      <div className="mx-auto max-w-page px-6 py-20">
+        <div className="mx-auto max-w-2xl text-center">
+          <span className="pill animate-fade-up">
+            <Quote className="h-3 w-3 text-accent-600" /> What people say
+          </span>
+          <h2 className="mt-5 animate-fade-up text-3xl font-semibold tracking-tight text-ink" style={{ animationDelay: '0.05s' }}>
+            Teams ship answers, not tickets
+          </h2>
+        </div>
+        <div className="mt-12 grid gap-6 md:grid-cols-3">
+          {quotes.map((t, i) => (
+            <figure
+              key={t.name}
+              className="card-light animate-fade-up p-6 transition-all duration-200 hover:-translate-y-1 hover:border-line-strong"
+              style={{ animationDelay: `${i * 0.1}s` }}
+            >
+              <Quote className="h-5 w-5 text-line-strong" />
+              <blockquote className="mt-3 text-sm leading-relaxed text-ink">{t.quote}</blockquote>
+              <figcaption className="mt-5 flex items-center gap-3">
+                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas text-xs font-semibold text-muted">
+                  {t.name.split(' ').map((w) => w[0]).join('')}
+                </span>
+                <div>
+                  <p className="text-sm font-medium text-ink">{t.name}</p>
+                  <p className="text-xs text-muted">{t.role}</p>
+                </div>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── FAQ ─────────────────────────────────────────────────────────────────── */
+
+function FAQ() {
+  const faqs = [
+    {
+      q: 'Does SQL Cockpit write to my database?',
+      a: 'No. Every query runs inside a read-only transaction by default. The agent cannot INSERT, UPDATE, or DELETE — even if you wanted it to.',
+    },
+    {
+      q: 'What databases are supported?',
+      a: 'Any PostgreSQL-compatible database. Connect with a standard connection string and the agent reads your schema automatically.',
+    },
+    {
+      q: 'Can the agent run a query without my approval?',
+      a: 'No. The human approval checkpoint is mandatory — nothing executes until you click Approve. You see the exact SQL first.',
+    },
+    {
+      q: 'Does my data leave my database?',
+      a: 'Only the schema (table and column names) is sent to the LLM to generate SQL. Your actual row data never leaves your database — only query results are returned to your browser.',
+    },
+    {
+      q: 'What if the agent picks the wrong tables?',
+      a: 'You see the selected tables in the reasoning panel before approving. If they look wrong, reject and rephrase your question.',
+    },
+  ]
+  const [open, setOpen] = useState<number | null>(0)
+
+  return (
+    <section id="faq" className="border-b border-line bg-white">
+      <div className="mx-auto max-w-2xl px-6 py-20">
+        <div className="text-center">
+          <span className="pill animate-fade-up">
+            <Eye className="h-3 w-3 text-accent-600" /> FAQ
+          </span>
+          <h2 className="mt-5 animate-fade-up text-3xl font-semibold tracking-tight text-ink" style={{ animationDelay: '0.05s' }}>
+            Questions, answered
+          </h2>
+        </div>
+        <div className="mt-10 space-y-3">
+          {faqs.map((f, i) => (
+            <div key={i} className="rounded-lg border border-line bg-white">
+              <button
+                onClick={() => setOpen(open === i ? null : i)}
+                className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-sm font-medium text-ink"
+              >
+                {f.q}
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-muted transition-transform duration-200 ${open === i ? 'rotate-180' : ''}`}
+                />
+              </button>
+              {open === i && (
+                <div className="animate-fade-in border-t border-line px-5 py-4 text-sm leading-relaxed text-muted">
+                  {f.a}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── Final CTA ───────────────────────────────────────────────────────────── */
+
+function FinalCTA() {
+  return (
+    <section className="relative overflow-hidden" style={{ backgroundColor: '#111214' }}>
+      <div className="hero-glow absolute inset-0 opacity-50" />
+      <div className="relative mx-auto max-w-page px-6 py-24 text-center animate-fade-up">
+        <Sparkles className="mx-auto h-8 w-8" style={{ color: '#2563eb' }} />
+        <h2 className="mt-6 text-3xl font-semibold tracking-tight sm:text-4xl" style={{ color: '#ffffff' }}>
+          Ready to query your data?
+        </h2>
+        <p className="mx-auto mt-3 max-w-md text-sm" style={{ color: 'rgba(255,255,255,0.6)' }}>
+          Create a free account — a demo database is included, and there's no setup required.
+        </p>
+        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <Link to="/signup" className="btn-primary w-full sm:w-auto">
+            Create a free account <ArrowRight className="h-4 w-4" />
+          </Link>
+          <Link
+            to="/login"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-150"
+            style={{ border: '1px solid rgba(255,255,255,0.2)', color: '#ffffff', backgroundColor: 'transparent' }}
+          >
+            Sign in
+          </Link>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ─── Footer ──────────────────────────────────────────────────────────────── */
+
+function Footer() {
+  return (
+    <footer style={{ borderTop: '1px solid #e5e7eb', backgroundColor: '#FAFAF9' }}>
+      <div className="mx-auto flex max-w-page flex-col items-center justify-between gap-4 px-6 py-8 sm:flex-row">
+        <div className="flex items-center gap-2">
+          <span
+            className="flex h-7 w-7 items-center justify-center rounded-lg"
+            style={{ backgroundColor: '#111214', color: '#ffffff' }}
+          >
+            <Database className="h-3.5 w-3.5" />
+          </span>
+          <span className="text-sm font-semibold" style={{ color: '#111214' }}>SQL Cockpit</span>
+          <nav className="ml-4 flex items-center gap-4 text-sm" style={{ color: '#5B6270' }}>
+            <a href="#how" className="transition-colors hover:text-[#111214]">How it works</a>
+            <a href="#" className="transition-colors hover:text-[#111214]">GitHub</a>
+            <a href="#" className="transition-colors hover:text-[#111214]">Docs</a>
+          </nav>
+        </div>
+        <div className="flex items-center gap-4 text-sm">
+          <Link to="/login" className="transition-colors hover:text-[#111214]" style={{ color: '#5B6270' }}>Sign in</Link>
+          <Link to="/signup" className="btn-primary">Sign up</Link>
+        </div>
+      </div>
+    </footer>
   )
 }

@@ -48,7 +48,7 @@ async def decide_next_step_node(state: AgentState) -> AgentState:
     preview_rows = results[:5]
     results_preview = json.dumps(preview_rows, indent=2, default=str)
 
-    llm = get_llm()
+    llm = get_llm(state["groq_api_key"])
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),
         HumanMessage(

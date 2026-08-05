@@ -1,7 +1,8 @@
 /**
  * components/SqlPanel.tsx
- * Collapsible panel showing the generated SQL for each assistant message.
- * Key UX feature: transparency into what the agent actually ran.
+ * Collapsible panel showing generated SQL — restyled per UI.md.
+ * Monospace font kept for actual SQL content (correct per UI.md).
+ * All logic (handleCopy, isOpen state) preserved verbatim.
  */
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -25,23 +26,20 @@ export default function SqlPanel({ sql }: SqlPanelProps) {
       <button
         id="sql-panel-toggle"
         onClick={() => setIsOpen((v) => !v)}
-        className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-400 transition-colors group"
+        className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300
+                   transition-colors group"
       >
         <svg
           className={`w-3.5 h-3.5 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+          fill="none" viewBox="0 0 24 24" stroke="currentColor"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>
-        <svg className="w-3.5 h-3.5 text-green-500/70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="w-3.5 h-3.5 text-emerald-400/60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5}
             d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
         </svg>
-        <span className="font-mono">
-          {isOpen ? 'Hide SQL' : 'Show SQL'}
-        </span>
+        <span>{isOpen ? 'Hide SQL' : 'Show SQL'}</span>
       </button>
 
       <AnimatePresence>
@@ -60,8 +58,8 @@ export default function SqlPanel({ sql }: SqlPanelProps) {
               <button
                 onClick={handleCopy}
                 className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity
-                           bg-surface-800 hover:bg-surface-700 border border-slate-700 text-slate-400 
-                           hover:text-white text-xs px-2 py-1 rounded"
+                           bg-surface-800 hover:bg-surface-700 border border-white/[0.10]
+                           text-slate-400 hover:text-white text-xs px-2 py-1 rounded-md"
               >
                 {copied ? '✓ Copied' : 'Copy'}
               </button>

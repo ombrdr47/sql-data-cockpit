@@ -1,33 +1,44 @@
 /**
- * pages/Login.tsx
- * Obsidian Cyber-Terminal Authentication
- * Authorized security clearance checkpoint for the Chinook SQL Data Cockpit.
+ * pages/Login.tsx — Light theme auth, matching Landing.tsx aesthetic.
+ * Left: light brand panel with grid bg, value props, SQL preview.
+ * Right: clean white form card. Auth logic unchanged.
  */
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
 import { useAuth } from '../lib/auth'
 
+const VALUE_PROPS = [
+  'Schema-aware table selection — no full-schema prompts',
+  'Every query validated by sqlglot before execution',
+  'Human approval checkpoint on ambiguous queries',
+  'Results as tables or charts, streamed live',
+]
+
+const INK   = '#111214'
+const MUTED = '#5B6270'
+const BORDER = '#e5e7eb'
+const CANVAS = '#FAFAF9'
+
 export default function Login() {
-  const [email, setEmail] = useState('')
+  const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const { login } = useAuth()
-  const navigate = useNavigate()
+  const [error, setError]       = useState('')
+  const [loading, setLoading]   = useState(false)
+  const { login }    = useAuth()
+  const navigate     = useNavigate()
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
-    setIsLoading(true)
-
+    setLoading(true)
     try {
       await login(email, password)
       navigate('/chat')
-    } catch (err: any) {
-      setError(err.message || 'Authentication failed. Please verify credentials.')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Incorrect email or password.'
+      setError(msg)
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
@@ -37,165 +48,240 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-950 text-slate-100 flex flex-col lg:flex-row relative selection:bg-brand-500 selection:text-surface-950 font-sans">
-      {/* ── Background Technical Spec Lines ──────────────────────────────────── */}
-      <div className="fixed inset-0 pointer-events-none z-0">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#1c1f26_1px,transparent_1px),linear-gradient(to_bottom,#1c1f26_1px,transparent_1px)] bg-[size:32px_32px] opacity-30" />
-        <div className="absolute top-[20%] left-[10%] w-[400px] h-[400px] bg-brand-600/5 rounded-full blur-[140px]" />
-      </div>
+    <>
+      <style>{`
+        .auth-input {
+          width: 100%;
+          border: 1px solid ${BORDER};
+          border-radius: 0.75rem;
+          padding: 0.75rem 1rem;
+          font-size: 0.875rem;
+          color: ${INK};
+          background: #fff;
+          transition: border-color 0.15s, box-shadow 0.15s;
+          outline: none;
+        }
+        .auth-input::placeholder { color: #a8a29e; }
+        .auth-input:focus {
+          border-color: #2563eb;
+          box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+        }
+        .auth-grid-bg {
+          background-color: ${CANVAS};
+          background-image:
+            linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+          background-size: 32px 32px;
+        }
+      `}</style>
 
-      {/* ── Left Column: System Telemetry Showcase ───────────────────────────── */}
-      <div className="lg:w-1/2 p-8 lg:p-16 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-800 relative z-10 font-mono">
-        <div>
-          <Link to="/" className="inline-flex items-center gap-3 group mb-12">
-            <div className="w-8 h-8 bg-brand-500 rounded flex items-center justify-center text-surface-950 font-bold shadow-[0_0_12px_rgba(255,107,0,0.4)]">
-              SQL
+      <div className="flex h-screen overflow-hidden font-sans" style={{ backgroundColor: CANVAS }}>
+
+        {/* ── Left brand panel ──────────────────────────────────────────────── */}
+        <div
+          className="auth-grid-bg hidden lg:flex lg:w-[45%] xl:w-[40%] flex-col justify-between px-12 py-10 flex-shrink-0"
+          style={{ borderRight: `1px solid ${BORDER}` }}
+        >
+          {/* Logo */}
+          <Link to="/" className="flex items-center gap-2.5">
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center"
+              style={{ backgroundColor: INK }}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
             </div>
-            <span className="text-white font-bold tracking-tight uppercase group-hover:text-brand-400 transition-colors">
-              Chinook <span className="text-brand-500">// DATA COCKPIT v2</span>
-            </span>
+            <span className="font-semibold text-sm" style={{ color: INK }}>SQL Cockpit</span>
           </Link>
 
-          <div className="max-w-md">
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 bg-surface-900 border border-slate-800 text-emerald-400 text-[11px] mb-6 uppercase tracking-wider">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>SEC_CLEARANCE: AUTHORIZED_TERMINAL</span>
-            </div>
-
-            <h1 className="text-3xl lg:text-5xl font-bold text-white tracking-tight mb-6 font-sans">
-              Precision Data Cockpit Access.
-            </h1>
-
-            <p className="text-slate-400 text-xs leading-relaxed mb-10 font-sans">
-              Authenticate to connect with the autonomous SQL engineering console. Experience token-pruned schema ingestion, AST syntax verification, and process-isolated sandbox analytics.
+          {/* Main copy */}
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.18em] font-semibold mb-5" style={{ color: MUTED }}>
+              What you get
             </p>
+            <h2 className="text-2xl font-bold leading-snug mb-8" style={{ color: INK }}>
+              Your database,<br />
+              in plain English
+            </h2>
 
-            {/* Diagnostic checklist */}
-            <div className="space-y-3 bg-surface-900/60 p-5 rounded border border-slate-800 text-xs mb-8">
-              <div className="text-slate-500 text-[10px] uppercase tracking-wider mb-2">[SYS_INTEGRITY_CHECK]</div>
-              <div className="flex items-center justify-between text-slate-300">
-                <span>[01] TLS 1.3 Transport Encryption</span>
-                <span className="text-emerald-400 font-bold">VERIFIED_OK</span>
+            <ul className="space-y-4">
+              {VALUE_PROPS.map((prop) => (
+                <li key={prop} className="flex items-start gap-3">
+                  <div
+                    className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
+                    style={{ backgroundColor: '#dcfce7', border: '1px solid #bbf7d0' }}
+                  >
+                    <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+                      <path d="M2.5 6l2.5 2.5 4.5-5" stroke="#15803d" strokeWidth="1.8"
+                        strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  </div>
+                  <span className="text-sm leading-relaxed" style={{ color: MUTED }}>{prop}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* SQL preview strip */}
+          <div>
+            <div
+              className="rounded-xl overflow-hidden"
+              style={{ border: `1px solid ${BORDER}`, backgroundColor: '#fff' }}
+            >
+              <div
+                className="px-4 py-2.5 text-[10px] font-mono"
+                style={{ borderBottom: `1px solid ${BORDER}`, color: '#15803d' }}
+              >
+                ✓ AST validated · read-only transaction
               </div>
-              <div className="flex items-center justify-between text-slate-300">
-                <span>[02] Process Sandbox Container</span>
-                <span className="text-emerald-400 font-bold">ISOLATED_OK</span>
-              </div>
-              <div className="flex items-center justify-between text-slate-300">
-                <span>[03] AST Compiler Guard</span>
-                <span className="text-emerald-400 font-bold">ACTIVE_OK</span>
-              </div>
+              <pre className="px-4 py-3 text-[10px] font-mono leading-relaxed" style={{ color: INK }}>
+{`SELECT customer, SUM(total) AS revenue
+FROM   invoices
+GROUP  BY customer
+ORDER  BY revenue DESC
+LIMIT  10`}
+              </pre>
             </div>
+            <p className="text-xs mt-4" style={{ color: '#a8a29e' }}>
+              Built on LangGraph · Groq · PostgreSQL · sqlglot
+            </p>
           </div>
         </div>
 
-        <div className="text-slate-500 text-[11px] flex items-center justify-between pt-6 border-t border-slate-800/60">
-          <span>TARGET_DB: chinook_music_store.postgresql</span>
-          <span>v2.0.4-prod</span>
-        </div>
-      </div>
-
-      {/* ── Right Column: Authentication Terminal ────────────────────────────── */}
-      <div className="lg:w-1/2 flex items-center justify-center p-6 lg:p-16 relative z-10">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3 }}
-          className="w-full max-w-md terminal-panel p-8 lg:p-10 border-slate-800 shadow-2xl relative"
+        {/* ── Right form panel ──────────────────────────────────────────────── */}
+        <div
+          className="flex-1 flex flex-col items-center justify-center px-5 sm:px-10 overflow-y-auto"
+          style={{ backgroundColor: CANVAS }}
         >
-          {/* Corner crosshairs */}
-          <div className="absolute top-0 left-0 w-2.5 h-2.5 border-t-2 border-l-2 border-brand-500" />
-          <div className="absolute top-0 right-0 w-2.5 h-2.5 border-t-2 border-r-2 border-brand-500" />
-          <div className="absolute bottom-0 left-0 w-2.5 h-2.5 border-b-2 border-l-2 border-brand-500" />
-          <div className="absolute bottom-0 right-0 w-2.5 h-2.5 border-b-2 border-r-2 border-brand-500" />
-
-          <div className="mb-8 font-mono">
-            <span className="text-[10px] text-brand-500 font-bold uppercase tracking-widest block mb-1">// AUTHENTICATION_REQUIRED</span>
-            <h2 className="text-2xl font-bold text-white tracking-tight font-sans">Connect to Workspace</h2>
-            <p className="text-slate-400 text-xs mt-1 font-sans">Enter operator credentials to unlock the SQL terminal.</p>
-          </div>
-
-          {/* Instant Demo Authorization Badge */}
-          <div className="mb-8 bg-brand-950/20 border border-brand-500/30 rounded p-4 flex items-center justify-between font-mono text-xs">
-            <div className="flex items-center gap-2.5">
-              <span className="text-brand-400 text-base">⚡</span>
-              <div>
-                <span className="text-slate-200 font-bold block text-xs">Sandbox Demo Access</span>
-                <span className="text-slate-400 text-[11px]">Instant pre-configured clearance</span>
-              </div>
+          {/* Mobile logo */}
+          <Link to="/" className="flex items-center gap-2 mb-8 lg:hidden">
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: INK }}>
+              <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
             </div>
+            <span className="font-semibold text-sm" style={{ color: INK }}>SQL Cockpit</span>
+          </Link>
+
+          <div className="w-full max-w-[380px]">
+            {/* Heading */}
+            <div className="mb-7">
+              <h1 className="text-xl font-bold mb-1" style={{ color: INK }}>Sign in</h1>
+              <p className="text-sm" style={{ color: MUTED }}>
+                Welcome back. Enter your credentials to continue.
+              </p>
+            </div>
+
+            {/* Demo shortcut */}
             <button
+              id="demo-btn"
               type="button"
               onClick={fillDemo}
-              className="bg-brand-500 hover:bg-brand-400 text-surface-950 font-bold px-3 py-1.5 rounded text-[11px] uppercase tracking-wider transition-all shadow-[0_0_10px_rgba(255,107,0,0.3)] active:scale-95"
+              className="w-full mb-5 flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-left"
+              style={{ border: `1px solid ${BORDER}`, backgroundColor: '#fff' }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = CANVAS)}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#fff')}
             >
-              [FILL_DEMO]
+              <div
+                className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm"
+                style={{ backgroundColor: CANVAS, border: `1px solid ${BORDER}` }}
+              >
+                ⚡
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium leading-tight" style={{ color: INK }}>Try the demo</p>
+                <p className="text-xs mt-0.5" style={{ color: MUTED }}>Fills credentials automatically</p>
+              </div>
+              <svg className="ml-auto flex-shrink-0" width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ color: MUTED }}>
+                <path d="M6 12l4-4-4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 mb-5">
+              <div className="flex-1 h-px" style={{ backgroundColor: BORDER }} />
+              <span className="text-xs whitespace-nowrap" style={{ color: '#a8a29e' }}>or continue with email</span>
+              <div className="flex-1 h-px" style={{ backgroundColor: BORDER }} />
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div
+                className="mb-4 flex items-start gap-2.5 px-3.5 py-3 rounded-xl"
+                style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}
+              >
+                <svg className="flex-shrink-0 mt-0.5" width="14" height="14"
+                  viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <path strokeLinecap="round" d="M12 8v4M12 16h.01" />
+                </svg>
+                <p className="text-sm" style={{ color: '#dc2626' }}>{error}</p>
+              </div>
+            )}
+
+            {/* Form */}
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: INK }}>
+                  Email address
+                </label>
+                <input
+                  id="email-input"
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  autoComplete="email"
+                  className="auth-input"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1.5" style={{ color: INK }}>
+                  Password
+                </label>
+                <input
+                  id="password-input"
+                  type="password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  className="auth-input"
+                />
+              </div>
+
+              <button
+                id="login-submit-btn"
+                type="submit"
+                disabled={loading}
+                className="w-full mt-1 py-3 rounded-xl font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+                style={{ backgroundColor: '#2563eb', color: '#fff' }}
+                onMouseEnter={e => !loading && (e.currentTarget.style.backgroundColor = '#1d4ed8')}
+                onMouseLeave={e => !loading && (e.currentTarget.style.backgroundColor = '#2563eb')}
+              >
+                {loading ? (
+                  <>
+                    <span className="w-4 h-4 border-2 rounded-full animate-spin"
+                      style={{ borderColor: 'rgba(255,255,255,0.3)', borderTopColor: '#fff' }} />
+                    Signing in…
+                  </>
+                ) : 'Sign in'}
+              </button>
+            </form>
+
+            <p className="mt-5 text-center text-sm" style={{ color: MUTED }}>
+              Don't have an account?{' '}
+              <Link to="/signup" className="font-semibold" style={{ color: '#2563eb' }}>
+                Create one free
+              </Link>
+            </p>
           </div>
-
-          {error && (
-            <div className="mb-6 bg-red-950/40 border border-red-800/80 text-red-300 p-3 rounded text-xs font-mono flex items-center gap-2">
-              <span className="text-red-400 font-bold">[ERR]</span>
-              <span>{error}</span>
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-5 font-mono text-xs">
-            <div>
-              <label className="block text-slate-300 uppercase tracking-wider mb-2">
-                [01_EMAIL_ADDRESS]
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="operator@chinook.dev"
-                className="input-field"
-              />
-            </div>
-
-            <div>
-              <label className="block text-slate-300 uppercase tracking-wider mb-2">
-                [02_PASSWORD_KEY]
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••••••"
-                className="input-field"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="btn-primary w-full py-3.5 text-xs font-bold uppercase tracking-widest mt-2 flex items-center justify-center gap-2 shadow-lg shadow-brand-500/20"
-            >
-              {isLoading ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-surface-950 border-t-transparent rounded-full animate-spin" />
-                  <span>[AUTHORIZING_SESSION...]</span>
-                </>
-              ) : (
-                <>
-                  <span>[AUTHORIZE_COCKPIT_ACCESS]</span>
-                  <span>→</span>
-                </>
-              )}
-            </button>
-          </form>
-
-          <div className="mt-8 pt-6 border-t border-slate-800/80 text-center font-mono text-xs text-slate-400">
-            <span>New Operator Clearance? </span>
-            <Link to="/signup" className="text-brand-400 hover:text-brand-300 font-bold underline decoration-slate-800 underline-offset-4">
-              [REGISTER_TERMINAL]
-            </Link>
-          </div>
-        </motion.div>
+        </div>
       </div>
-    </div>
+    </>
   )
 }

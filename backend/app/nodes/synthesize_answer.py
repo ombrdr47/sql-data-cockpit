@@ -63,7 +63,7 @@ async def synthesize_answer_node(state: AgentState) -> AgentState:
     node_path = list(state.get("node_path", []))
     node_path.append("synthesize_answer")
 
-    llm = get_llm()
+    llm = get_llm(state["groq_api_key"])
     question = state.get("question", "")
 
     # ── CANNOT_ANSWER path ────────────────────────────────────────────────────
