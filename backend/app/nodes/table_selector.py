@@ -30,7 +30,7 @@ async def table_selector_node(state: AgentState) -> AgentState:
 
         engine = await engine_pool.get_engine(uuid.UUID(connection_id))
         pruned_schema, selected_tables = await dynamic_catalog.get_pruned_schema_text(
-            engine, question
+            engine, question, api_key=state.get("groq_api_key")
         )
     else:
         # ── Chinook fast-path ─────────────────────────────────────────────────

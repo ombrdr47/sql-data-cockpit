@@ -5,14 +5,14 @@
  * and API calls are preserved verbatim. Only JSX markup and class names changed.
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { motion, AnimatePresence } from 'framer-motion'
 import MessageBubble, { type Message, type TableData } from '../components/MessageBubble'
 import Sidebar from '../components/Sidebar'
 import { type ReasoningStep } from '../components/AgentProgress'
 import api, { getAccessToken, attemptTokenRefresh, setAccessToken, connectionsApi, type UserConnection } from '../lib/api'
 import DatasourcePicker from '../components/DatasourcePicker'
-import { useQuery } from '@tanstack/react-query'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -29,6 +29,7 @@ export default function Chat() {
   const [messages, setMessages]               = useState<Message[]>([])
   const [input, setInput]                     = useState('')
   const [isLoading, setIsLoading]             = useState(false)
+  const [noApiKey, setNoApiKey]               = useState(false)
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen]         = useState(false)
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null)
@@ -170,6 +171,20 @@ export default function Chat() {
         } else {
           throw new Error('Session expired. Please log in again.')
         }
+      }
+
+      if (response.status === 400) {
+        // Check for "no API key" sentinel from backend
+        try {
+          const errBody = await response.json()
+          if (errBody?.detail === 'no_api_key') {
+            setNoApiKey(true)
+            setMessages(prev => prev.filter(m => m.id !== assistantId && m.id !== userMsg.id))
+            isLoadingRef.current = false
+            setIsLoading(false)
+            return
+          }
+        } catch { /* ignore parse error */ }
       }
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`)
@@ -479,8 +494,8 @@ export default function Chat() {
             </div>
           </div>
 
-          {/* Status — uses status colors, not brand blue */}
-          <div className="flex items-center gap-3 flex-shrink-0">
+          {/* Right side: status + settings */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             <AnimatePresence mode="wait">
               {isLoading ? (
                 <motion.div
@@ -507,8 +522,48 @@ export default function Chat() {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {/* Settings link — always visible */}
+            <Link
+              to="/settings"
+              className="flex items-center justify-center w-8 h-8 rounded-lg
+                         text-slate-500 hover:text-slate-200 hover:bg-white/[0.06]
+                         transition-colors duration-150"
+              title="Settings"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+            </Link>
           </div>
         </header>
+
+        {/* No-API-key banner */}
+        {noApiKey && (
+          <div className="mx-4 sm:mx-5 mt-3 mb-0 flex items-start gap-3 px-4 py-3.5
+                          bg-amber-500/10 border border-amber-500/20 rounded-xl">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" className="text-amber-400 flex-shrink-0 mt-0.5">
+              <path strokeLinecap="round" strokeLinejoin="round"
+                d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm text-amber-300 font-medium">Groq API key required</p>
+              <p className="text-xs text-amber-400/70 mt-0.5">
+                Add your Groq API key in Settings to start chatting.
+              </p>
+            </div>
+            <Link
+              to="/settings"
+              className="flex-shrink-0 text-xs font-medium text-amber-300 hover:text-amber-200
+                         border border-amber-500/30 rounded-lg px-3 py-1.5 transition-colors
+                         hover:bg-amber-500/10"
+            >
+              Go to Settings →
+            </Link>
+          </div>
+        )}
 
         {/* Messages — scrollable, full height */}
         <main className="flex-1 overflow-y-auto overscroll-contain"

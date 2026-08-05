@@ -15,6 +15,7 @@ class AgentState(TypedDict, total=False):
     question: str                    # The user's natural-language question
     conversation_id: str             # UUID of the active conversation
     user_id: str                     # UUID of the authenticated user
+    groq_api_key: str                # Decrypted Groq API key for this request
 
     # ── Datasource ────────────────────────────────────────────────────────────
     # None = Chinook demo; UUID str = user's saved connection

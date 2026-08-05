@@ -46,6 +46,7 @@ from .models import User
 from .routers.auth_router import router as auth_router
 from .routers.conversations_router import router as conversations_router
 from .routers.connections_router import router as connections_router
+from .routers.settings_router import router as settings_router
 from .schema_catalog import get_full_schema_text   # warm-up
 
 
@@ -202,6 +203,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(conversations_router)
     app.include_router(connections_router)
+    app.include_router(settings_router)
 
     return app
 
@@ -428,10 +430,36 @@ async def chat(
 
     graph = app.state.graph
 
+    # ── Resolve the user's Groq API key ──────────────────────────────────────
+    # Decrypt from DB if set; fall back to server key for demo user only.
+    from .crypto import get_fernet, decrypt_field as _decrypt
+    from .config import get_settings as _get_settings
+
+    groq_api_key: str | None = None
+    if current_user.groq_api_key_enc:
+        try:
+            _fernet = get_fernet(_get_settings().jwt_secret_key)
+            groq_api_key = _decrypt(current_user.groq_api_key_enc, _fernet)
+        except Exception:
+            groq_api_key = None
+
+    # Demo user fallback — use server key if available
+    if groq_api_key is None and current_user.email == "demo@chinook.dev":
+        _server_key = _get_settings().groq_api_key
+        if _server_key:
+            groq_api_key = _server_key
+
+    if groq_api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="no_api_key",
+        )
+
     return EventSourceResponse(_chat_generator(
         graph, question, conversation_id, str(current_user.id),
         connection_id=effective_connection_id,
         datasource_name=connection_name,
+        groq_api_key=groq_api_key,
     ))
 
 
@@ -440,8 +468,9 @@ async def _chat_generator(
     question: str,
     conversation_id: str,
     user_id: str,
-    connection_id: Optional[str] = None,
-    datasource_name: Optional[str] = None,
+    connection_id: str | None = None,
+    datasource_name: str | None = None,
+    groq_api_key: str = "",
 ):
     """Top-level SSE generator for the initial /chat request."""
     yield {
@@ -453,6 +482,7 @@ async def _chat_generator(
         "question": question,
         "conversation_id": conversation_id,
         "user_id": user_id,
+        "groq_api_key": groq_api_key,
         # BYODB fields — None defaults to Chinook demo
         "connection_id": connection_id,
         "datasource_name": datasource_name,

@@ -35,7 +35,7 @@ SQL query:"""
 
 async def generate_sql_node(state: AgentState) -> AgentState:
     """Call the LLM to generate SQL from the question + schema."""
-    llm = get_llm()
+    llm = get_llm(state["groq_api_key"])
 
     # Resolve datasource name for the system prompt
     database_name = state.get("datasource_name") or "Chinook music store"

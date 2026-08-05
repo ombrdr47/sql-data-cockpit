@@ -401,7 +401,7 @@ class DynamicSchemaCatalog:
         }
 
     async def get_pruned_schema_text(
-        self, engine, question: str
+        self, engine, question: str, api_key: str | None = None
     ) -> tuple[str, list[str]]:
         """Build a focused schema text for any PostgreSQL database.
 
@@ -416,7 +416,7 @@ class DynamicSchemaCatalog:
         if len(all_tables) <= 20:
             selected = set(all_tables)
         else:
-            selected = await self._llm_select_tables(question, struct)
+            selected = await self._llm_select_tables(question, struct, api_key=api_key)
 
         db_name = str(engine.url).split("/")[-1].split("?")[0]
         parts = [f"-- {db_name} Database Schema (pruned for: {question[:80]})\n"]
@@ -450,10 +450,10 @@ class DynamicSchemaCatalog:
         return "\n".join(parts), table_names
 
     async def _llm_select_tables(
-        self, question: str, struct: dict[str, list[dict]]
+        self, question: str, struct: dict[str, list[dict]], api_key: str | None = None
     ) -> set[str]:
         """Ask the LLM to choose relevant tables from a large schema."""
-        from .llm import get_llm
+        from .llm import get_llm, get_server_llm
         from langchain_core.messages import HumanMessage, SystemMessage
 
         # Build a compact table listing for the LLM
@@ -472,7 +472,7 @@ class DynamicSchemaCatalog:
                 f"Tables:\n{table_listing}\n\nQuestion: {question}\n\nRelevant tables:"
             )),
         ]
-        llm = get_llm()
+        llm = get_llm(api_key) if api_key else get_server_llm()
         response = await llm.ainvoke(messages)
         selected_raw = response.content.strip().splitlines()
         valid = {t.strip().lower() for t in selected_raw if t.strip()}

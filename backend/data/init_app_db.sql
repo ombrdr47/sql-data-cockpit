@@ -11,9 +11,15 @@ CREATE TABLE IF NOT EXISTS users (
     username    TEXT UNIQUE NOT NULL,
     hashed_password TEXT NOT NULL,
     role        TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+    -- Fernet-encrypted Groq API key (NULL = no key configured yet)
+    groq_api_key_enc TEXT,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Live migration: add column to existing databases without data loss
+ALTER TABLE users ADD COLUMN IF NOT EXISTS groq_api_key_enc TEXT;
+
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
