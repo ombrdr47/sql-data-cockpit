@@ -67,7 +67,7 @@ class LoginRequest(BaseModel):
 
 class ChangePasswordRequest(BaseModel):
     current_password:str
-    new_password:str 
+    new_password:str
 
     @field_validator("new_password")
     @classmethod
@@ -80,7 +80,7 @@ class ChangePasswordRequest(BaseModel):
         if self.current_password==self.new_password:
             raise ValueError("New Password must be different from the current Password")
         return self
-    
+
 
 class UserResponse(BaseModel):
     user_id: str
@@ -118,7 +118,11 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@router.post("/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/signup",
+    response_model=TokenResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def signup(
     body: SignupRequest,
     response: Response,
@@ -302,14 +306,14 @@ async def change_Password(body:ChangePasswordRequest,
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="New password must be different from a current password"
         )
-    
+
     current_user.hashed_password=hash_password(body.new_password)
 
     await session.execute(
         update(RefreshToken)
         .where(RefreshToken.user_id==current_user.id)
         .values(revoked=True)
-        
+
     )
 
     await session.commit()

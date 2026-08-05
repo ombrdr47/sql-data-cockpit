@@ -29,13 +29,14 @@ def _make_access_token(user_id: str = None, email: str = "test@example.com") -> 
     return create_access_token(uid, email)
 
 
-def _make_user(user_id: str, email: str = "test@example.com"):
+def _make_user(user_id: str, email: str = "demo@chinook.dev"):
     from backend.app.models import User
     mock_user = MagicMock(spec=User)
     mock_user.id = uuid.UUID(user_id)
     mock_user.email = email
     mock_user.username = "testuser"
     mock_user.role = "user"
+    mock_user.groq_api_key_enc = None
     return mock_user
 
 

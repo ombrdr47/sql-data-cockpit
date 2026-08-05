@@ -34,6 +34,7 @@ def base_state():
         "question": "Show me all artists",
         "conversation_id": "test-convo-id",
         "user_id": "test-user-id",
+        "groq_api_key": "test_key",
         "schema_text": """CREATE TABLE artist (
   ArtistId INTEGER NOT NULL PRIMARY KEY,
   Name TEXT
