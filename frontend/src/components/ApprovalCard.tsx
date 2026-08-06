@@ -1,16 +1,21 @@
 /**
  * components/ApprovalCard.tsx
- * Human-In-The-Loop (HITL) review card — restyled per UI.md.
- * All logic (handleApprove, handleReject, onReview, states) preserved verbatim.
+ * Human-In-The-Loop (HITL) review card.
+ *
+ * Status flow:
+ *   pending    → card shown, user can approve/reject
+ *   processing → user rejected; spinner shown while agent regenerates SQL
+ *   approved   → green confirmation banner
+ *   rejected   → rose banner (only shown if agent gives up / no new SQL comes)
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 
 export interface ApprovalCardProps {
   sql: string
   conversationId: string
   question: string
-  status?: 'pending' | 'approved' | 'rejected'
+  status?: 'pending' | 'approved' | 'rejected' | 'processing'
   onReview: (approved: boolean, feedback?: string) => void
   disabled?: boolean
 }
@@ -21,9 +26,19 @@ export default function ApprovalCard({
   onReview,
   disabled = false,
 }: ApprovalCardProps) {
-  const [feedback, setFeedback]               = useState('')
+  const [feedback, setFeedback]                   = useState('')
   const [showFeedbackInput, setShowFeedbackInput] = useState(false)
-  const [submitting, setSubmitting]           = useState(false)
+  const [submitting, setSubmitting]               = useState(false)
+
+  // When the parent resets status back to 'pending' (new SQL from agent),
+  // reset local submitting state so the card is interactive again.
+  useEffect(() => {
+    if (status === 'pending') {
+      setSubmitting(false)
+      setFeedback('')
+      setShowFeedbackInput(false)
+    }
+  }, [status])
 
   const handleApprove = () => {
     if (disabled || submitting) return
@@ -36,6 +51,8 @@ export default function ApprovalCard({
     setSubmitting(true)
     onReview(false, feedback.trim() || undefined)
   }
+
+  // ── Status banners ────────────────────────────────────────────────────────
 
   if (status === 'approved') {
     return (
@@ -51,6 +68,28 @@ export default function ApprovalCard({
     )
   }
 
+  if (status === 'processing') {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="mt-3 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-xl
+                   text-sm text-amber-300 flex items-center gap-2"
+      >
+        <svg
+          className="w-3.5 h-3.5 animate-spin flex-shrink-0 text-amber-400"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+        </svg>
+        Regenerating SQL — reviewing your feedback…
+      </motion.div>
+    )
+  }
+
   if (status === 'rejected') {
     return (
       <motion.div
@@ -60,10 +99,12 @@ export default function ApprovalCard({
                    text-sm text-rose-400 flex items-center gap-2"
       >
         <span className="w-2 h-2 rounded-full bg-rose-400 inline-block flex-shrink-0" />
-        Query rejected — the agent will try a revised approach.
+        Query rejected — the agent could not generate a revised query.
       </motion.div>
     )
   }
+
+  // ── Pending: interactive card ─────────────────────────────────────────────
 
   return (
     <motion.div
@@ -92,7 +133,7 @@ export default function ApprovalCard({
           <pre className="whitespace-pre-wrap break-all">{sql}</pre>
         </div>
 
-        {/* Optional feedback for rejection */}
+        {/* Optional feedback textarea */}
         {showFeedbackInput && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -100,7 +141,7 @@ export default function ApprovalCard({
             className="space-y-1.5"
           >
             <label className="text-xs text-slate-400 block">
-              Feedback for the agent (optional)
+              What should the agent change? (optional)
             </label>
             <textarea
               value={feedback}
@@ -136,7 +177,7 @@ export default function ApprovalCard({
                        hover:bg-rose-500/20 text-rose-300 text-sm font-medium
                        transition-all disabled:opacity-50 cursor-pointer"
           >
-            {submitting ? 'Processing…' : 'Reject & revise'}
+            {submitting ? 'Sending…' : 'Reject & revise'}
           </button>
 
           <button
@@ -147,7 +188,7 @@ export default function ApprovalCard({
                        text-white text-sm font-medium transition-all
                        disabled:opacity-50 cursor-pointer shadow-sm"
           >
-            {submitting ? 'Processing…' : 'Run query'}
+            {submitting ? 'Sending…' : 'Run query'}
           </button>
         </div>
       </div>
