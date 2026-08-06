@@ -312,7 +312,7 @@ export default function Chat() {
 
     setMessages(prev => prev.map(m =>
       m.id === messageId && m.approvalRequest
-        ? { ...m, isStreaming: true, approvalRequest: { ...m.approvalRequest, status: approved ? 'approved' : 'rejected' } }
+        ? { ...m, isStreaming: true, approvalRequest: { ...m.approvalRequest, status: approved ? 'approved' : 'processing' } }
         : m
     ))
 
@@ -411,7 +411,7 @@ export default function Chat() {
               if (event.type === 'done') {
                 setMessages(prev => prev.map(m =>
                   m.id === messageId
-                    ? { ...m, isStreaming: false, generatedSql: streamedSql, chartBase64: streamedChart || event.chart_base64, retryCount: event.retry_count, tableData: streamedTable }
+                    ? { ...m, isStreaming: false, approvalRequest: null, generatedSql: streamedSql, chartBase64: streamedChart || event.chart_base64, retryCount: event.retry_count, tableData: streamedTable }
                     : m
                 ))
                 queryClient.invalidateQueries({ queryKey: ['conversations'] })

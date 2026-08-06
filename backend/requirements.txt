@@ -48,3 +48,4 @@ sse-starlette==2.1.3
 
 # ── Dev / Lint (not in prod image; install separately) ───────────────────────
 # ruff==0.8.6
+alembic>=1.16.0
