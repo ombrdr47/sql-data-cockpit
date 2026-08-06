@@ -16,7 +16,7 @@ export interface ApprovalRequest {
   sql: string
   conversationId: string
   question: string
-  status?: 'pending' | 'approved' | 'rejected'
+  status?: 'pending' | 'approved' | 'rejected' | 'processing'
 }
 
 export interface TableData {
