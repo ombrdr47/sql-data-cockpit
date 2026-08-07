@@ -22,7 +22,6 @@ import {
   Code2,
   Layers,
   Terminal,
-  Quote,
   ChevronDown,
 } from 'lucide-react'
 
@@ -38,7 +37,6 @@ export default function Landing() {
       <LiveDemo />
       <Comparison />
       <StackCredit />
-      <Testimonials />
       <FAQ />
       <FinalCTA />
       <Footer />
@@ -674,62 +672,7 @@ function StackCredit() {
   )
 }
 
-/* ─── Testimonials ────────────────────────────────────────────────────────── */
 
-function Testimonials() {
-  const quotes = [
-    {
-      quote: "Our analytics team pulls their own revenue numbers now. I haven't written a one-off query in weeks.",
-      name: 'Dana Whitfield',
-      role: 'Data Lead, Northwind Retail',
-    },
-    {
-      quote: 'The approval step is what sold me. I can see exactly what runs against production before it happens.',
-      name: 'Marcus Chen',
-      role: 'Senior DBA, Helios Health',
-    },
-    {
-      quote: "It picked the right tables on a 200-table schema. That's the part I expected to fail, and it didn't.",
-      name: 'Priya Nair',
-      role: 'Analytics Manager, Lumen SaaS',
-    },
-  ]
-  return (
-    <section className="border-b border-line bg-canvas">
-      <div className="mx-auto max-w-page px-6 py-20">
-        <div className="mx-auto max-w-2xl text-center">
-          <span className="pill animate-fade-up">
-            <Quote className="h-3 w-3 text-accent-600" /> What people say
-          </span>
-          <h2 className="mt-5 animate-fade-up text-3xl font-semibold tracking-tight text-ink" style={{ animationDelay: '0.05s' }}>
-            Teams ship answers, not tickets
-          </h2>
-        </div>
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
-          {quotes.map((t, i) => (
-            <figure
-              key={t.name}
-              className="card-light animate-fade-up p-6 transition-all duration-200 hover:-translate-y-1 hover:border-line-strong"
-              style={{ animationDelay: `${i * 0.1}s` }}
-            >
-              <Quote className="h-5 w-5 text-line-strong" />
-              <blockquote className="mt-3 text-sm leading-relaxed text-ink">{t.quote}</blockquote>
-              <figcaption className="mt-5 flex items-center gap-3">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-canvas text-xs font-semibold text-muted">
-                  {t.name.split(' ').map((w) => w[0]).join('')}
-                </span>
-                <div>
-                  <p className="text-sm font-medium text-ink">{t.name}</p>
-                  <p className="text-xs text-muted">{t.role}</p>
-                </div>
-              </figcaption>
-            </figure>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
 
 /* ─── FAQ ─────────────────────────────────────────────────────────────────── */
 
