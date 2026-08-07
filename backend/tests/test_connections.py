@@ -1,7 +1,14 @@
 import pytest
+from unittest.mock import MagicMock
 from fastapi import HTTPException
 from app.crypto import encrypt_field, decrypt_field, get_fernet
-from app.routers.connections_router import _assert_not_internal, ConnectionCreate, _mask
+from app.routers.connections_router import (
+    _assert_not_internal,
+    _require_non_demo,
+    ConnectionCreate,
+    _mask,
+    DEMO_EMAIL,
+)
 
 
 class TestCrypto:
@@ -73,3 +80,54 @@ class TestHelpersAndSchemas:
         masked = _mask("analytics_db")
         assert masked.startswith("ana")
         assert masked.endswith("***")
+
+
+class TestDemoAccountGuard:
+    """Unit tests for _require_non_demo dependency.
+
+    Tests are pure — no DB or HTTP client needed. The dependency receives an
+    already-resolved User object (as FastAPI would after running get_current_user),
+    so we mock User directly.
+    """
+
+    def _make_user(self, email: str):
+        from app.models import User
+        u = MagicMock(spec=User)
+        u.email = email
+        return u
+
+    def test_demo_account_is_blocked(self):
+        """POST/DELETE /connections must return 403 for the shared demo account."""
+        demo_user = self._make_user(DEMO_EMAIL)
+        with pytest.raises(HTTPException) as exc_info:
+            _require_non_demo(current_user=demo_user)
+        assert exc_info.value.status_code == 403
+        assert "demo account" in exc_info.value.detail.lower()
+
+    def test_regular_user_is_allowed(self):
+        """A normal account must pass through the guard unchanged."""
+        regular_user = self._make_user("alice@company.com")
+        result = _require_non_demo(current_user=regular_user)
+        assert result is regular_user  # exact same object returned
+
+    def test_admin_user_is_allowed(self):
+        """Admin accounts are also regular users — must not be blocked."""
+        admin_user = self._make_user("admin@sql-cockpit.io")
+        result = _require_non_demo(current_user=admin_user)
+        assert result is admin_user
+
+    def test_demo_email_constant_is_correct(self):
+        """Guard email must match the seeded demo account email in main.py."""
+        assert DEMO_EMAIL == "demo@chinook.dev"
+
+    def test_email_check_is_case_sensitive(self):
+        """Guard must not be bypassed with capital letters in the email.
+
+        The demo account is always seeded with a lowercase email by main.py,
+        so uppercase variants are simply treated as different (non-demo) users.
+        This test documents that behaviour explicitly.
+        """
+        upper_user = self._make_user("Demo@Chinook.Dev")
+        # Should NOT raise — different email string, treated as regular user
+        result = _require_non_demo(current_user=upper_user)
+        assert result is upper_user

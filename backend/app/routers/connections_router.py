@@ -36,6 +36,32 @@ from ..models import User, UserConnection
 
 router = APIRouter(prefix="/connections", tags=["connections"])
 
+# ── Demo account guard ────────────────────────────────────────────────────────
+# The demo account (demo@chinook.dev) is a shared credential used for public
+# demonstrations. Allowing BYODB connections on it would expose any integrating
+# user's database credentials to every other demo session. We block write
+# operations at the dependency level so regular users are never affected.
+
+DEMO_EMAIL: str = "demo@chinook.dev"
+
+
+def _require_non_demo(current_user: User = Depends(get_current_user)) -> User:
+    """Raise 403 if the request comes from the shared demo account.
+
+    Applied to any endpoint that creates or deletes persistent user data
+    (connections) to prevent one demo session from affecting another.
+    Regular accounts are passed through unchanged.
+    """
+    if current_user.email == DEMO_EMAIL:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                "BYODB connections are not available on the demo account. "
+                "Create a personal account to connect your own database."
+            ),
+        )
+    return current_user
+
 
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
@@ -163,7 +189,7 @@ def _to_response(conn: UserConnection, fernet) -> ConnectionResponse:
 @router.post("", status_code=status.HTTP_201_CREATED, response_model=ConnectionResponse)
 async def create_connection(
     body: ConnectionCreate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_require_non_demo),
     session: AsyncSession = Depends(get_appdb_session),
 ):
     """FR-1, FR-2: Validate + save a new database connection."""
@@ -242,7 +268,7 @@ async def list_connections(
 @router.delete("/{connection_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_connection(
     connection_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_require_non_demo),
     session: AsyncSession = Depends(get_appdb_session),
 ):
     """FR-11: Delete a connection and permanently wipe its credentials."""
