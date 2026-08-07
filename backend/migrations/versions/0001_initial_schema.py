@@ -1,7 +1,7 @@
 """Initial schema baseline
 
 Revision ID: 0001
-Revises: 
+Revises:
 Create Date: 2026-08-07
 
 This migration reflects the schema that was already applied manually to
