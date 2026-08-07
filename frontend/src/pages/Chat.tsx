@@ -32,6 +32,7 @@ export default function Chat() {
   const [noApiKey, setNoApiKey]               = useState(false)
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen]         = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null)
   const messagesEndRef   = useRef<HTMLDivElement>(null)
   const inputRef         = useRef<HTMLTextAreaElement>(null)
@@ -462,6 +463,8 @@ export default function Chat() {
         onNewConversation={handleNewConversation}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed(p => !p)}
       />
 
       {/* Main area */}
@@ -470,6 +473,7 @@ export default function Chat() {
         <header className="flex items-center justify-between px-4 sm:px-5 py-3
                            border-b border-white/[0.07] bg-surface-950 flex-shrink-0">
           <div className="flex items-center gap-3 min-w-0">
+            {/* Mobile burger */}
             <button
               onClick={() => setSidebarOpen(true)}
               className="md:hidden flex-shrink-0 w-10 h-10 flex items-center justify-center
@@ -481,6 +485,22 @@ export default function Chat() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
+
+            {/* Desktop: show sidebar button (only when collapsed) */}
+            {sidebarCollapsed && (
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                className="hidden md:flex flex-shrink-0 w-8 h-8 items-center justify-center
+                           rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/[0.06]
+                           transition-colors duration-150"
+                aria-label="Show sidebar"
+                title="Show sidebar"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
+                </svg>
+              </button>
+            )}
 
             <div className="flex items-center gap-2 min-w-0">
               <div className="w-6 h-6 rounded-md bg-accent-600 hidden sm:flex items-center justify-center flex-shrink-0">
