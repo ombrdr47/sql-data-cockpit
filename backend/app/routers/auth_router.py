@@ -124,6 +124,16 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
     )
 
 
+@router.get("/options")
+async def auth_options():
+    settings = get_settings()
+    return {
+        "email_verification_required": settings.email_verification_required,
+        "password_reset_available": settings.mail_transport != "disabled",
+        "demo_available": settings.environment.lower() != "production",
+    }
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.post(
@@ -164,6 +174,16 @@ async def signup(
     await session.flush()
     await session.refresh(user)
 
+    if not get_settings().email_verification_required:
+        refresh_token = create_refresh_token()
+        await store_refresh_token(session, user.id, refresh_token)
+        await session.commit()
+        _set_refresh_cookie(response, refresh_token)
+        return TokenResponse(
+            access_token=create_access_token(str(user.id), user.email, user.session_version),
+            user_id=str(user.id), username=user.username, email=user.email,
+        )
+
     from ..account_recovery import issue_link
     try:
         await issue_link(session, user, 'verify')
@@ -191,7 +211,7 @@ async def login(
             detail="Invalid email or password",
         )
 
-    if not user.email_verified:
+    if get_settings().email_verification_required and not user.email_verified:
         raise HTTPException(403, detail="email_not_verified")
     if user.email == "demo@chinook.dev" and get_settings().environment.lower() == "production":
         raise HTTPException(status_code=403, detail="Shared demo access is disabled in production.")
@@ -235,7 +255,7 @@ async def refresh(
     user, new_refresh_token = await rotate_refresh_token(session, refresh_token)
     await session.commit()
 
-    if not user.email_verified:
+    if get_settings().email_verification_required and not user.email_verified:
         raise HTTPException(403, detail="email_not_verified")
     if user.email == "demo@chinook.dev" and get_settings().environment.lower() == "production":
         raise HTTPException(status_code=403, detail="Shared demo access is disabled in production.")

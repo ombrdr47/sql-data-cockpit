@@ -7,8 +7,8 @@ services:
     runtime: docker
     plan: free
     region: singapore
-    branch: codex/analysis-workspace
-    autoDeployTrigger: "off"
+    branch: main
+    autoDeployTrigger: commit
     dockerfilePath: ./Dockerfile.backend
     dockerContext: .
     healthCheckPath: /health
@@ -33,16 +33,10 @@ services:
         value: https://sql-data-cockpit.vercel.app
       - key: SECURE_COOKIES
         value: "true"
+      - key: EMAIL_VERIFICATION_REQUIRED
+        value: "false"
       - key: MAIL_TRANSPORT
-        value: gmail_api
-      - key: GMAIL_CLIENT_ID
-        sync: false
-      - key: GMAIL_CLIENT_SECRET
-        sync: false
-      - key: GMAIL_REFRESH_TOKEN
-        sync: false
-      - key: MAIL_FROM
-        value: SQL Cockpit <omb4027@gmail.com>
+        value: disabled
       - key: APP_DB_POOL_SIZE
         value: "2"
       - key: APP_DB_POOL_OVERFLOW

@@ -77,7 +77,7 @@ export default function Landing() {
 
         <section className="home-final home-container"><div><span className="home-kicker">MAKE SOMETHING OF YOUR DATA</span><h2>Your next useful answer<br />starts with a question.</h2></div><Link className="home-button home-button-light" to="/login?demo=1">Explore the sample workspace <ArrowUpRight size={18} /></Link></section>
       </main>
-      <footer className="home-footer home-container"><Link className="home-brand" to="/"><BrandMark size={26} />SQL Cockpit</Link><span>Ask. Inspect. Keep.</span><div><a href="https://github.com/ombrdr47/sql-data-cockpit" target="_blank" rel="noreferrer">GitHub <ArrowUpRight size={13} /></a><Link to="/login">Sign in</Link></div></footer>
+      <footer className="home-footer home-container"><Link className="home-brand" to="/"><BrandMark size={26} />SQL Cockpit</Link><span>Ask. Inspect. Keep.</span><div><a href="https://github.com/ombrdr47/sql-data-cockpit" target="_blank" rel="noreferrer">GitHub <ArrowUpRight size={13} /></a><a href="/privacy.html">Privacy</a><Link to="/login">Sign in</Link></div></footer>
     </div>
   )
 }

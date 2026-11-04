@@ -22,6 +22,6 @@ export default function AuthLayout({ children, signup = false }: { children: Rea
       </section>
       <section className="account-form-panel">{children}</section>
     </div>
-    <footer className="account-footer"><span>SQL Cockpit · Ask. Inspect. Keep.</span><span>Built for a clearer picture.</span></footer>
+    <footer className="account-footer"><span>SQL Cockpit · Ask. Inspect. Keep.</span><a href="/privacy.html">Privacy policy</a></footer>
   </main>
 }

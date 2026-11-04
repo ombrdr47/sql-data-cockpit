@@ -137,7 +137,7 @@ async def get_current_user(
         )
     if user.email == "demo@chinook.dev" and get_settings().environment.lower() == "production":
         raise HTTPException(status_code=403, detail="Shared demo access is disabled in production.")
-    if not user.email_verified:
+    if get_settings().email_verification_required and not user.email_verified:
         raise HTTPException(status_code=403, detail="Verify your email before continuing.")
     if payload.get("ver", 0) != user.session_version:
         raise HTTPException(status_code=401, detail="Session expired. Sign in again.")
@@ -195,7 +195,7 @@ async def rotate_refresh_token(
 
     if user.email == "demo@chinook.dev" and get_settings().environment.lower() == "production":
         raise HTTPException(status_code=403, detail="Shared demo access is disabled in production.")
-    if not user.email_verified:
+    if get_settings().email_verification_required and not user.email_verified:
         raise HTTPException(status_code=401, detail="Email verification required")
 
     # Issue new token

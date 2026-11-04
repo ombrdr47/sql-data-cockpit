@@ -25,7 +25,7 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>
-  signup: (email: string, username: string, password: string) => Promise<void>
+  signup: (email: string, username: string, password: string) => Promise<boolean>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -100,7 +100,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [queryClient])
 
   const signup = useCallback(async (email: string, username: string, password: string) => {
-    await api.post('/auth/signup', { email, username, password })
+    const { data } = await api.post('/auth/signup', { email, username, password })
+    if (!data.access_token) return false
+    queryClient.clear()
+    setAccessToken(data.access_token)
+    setState({
+      user: { user_id: data.user_id, username: data.username, email: data.email, role: 'user' },
+      isLoading: false,
+      isAuthenticated: true,
+    })
+    return true
   }, [queryClient])
 
   const logout = useCallback(async () => {

@@ -20,14 +20,14 @@ export default function Signup() {
     e.preventDefault(); setError('')
     if (password !== confirmPassword) { setError('Passwords do not match.'); return }
     setIsLoading(true)
-    try { await signup(email, username, password); navigate('/verify-email?email=' + encodeURIComponent(email)) }
+    try { const signedIn = await signup(email, username, password); navigate(signedIn ? '/chat' : '/verify-email?email=' + encodeURIComponent(email)) }
     catch (err) { setError(authError(err, 'Registration failed. Please try again.')) }
     finally { setIsLoading(false) }
   }
   return <AuthLayout signup>
     <span className="account-eyebrow">A FRESH WORKSPACE</span>
     <h2>Make room for your next idea.</h2>
-    <p className="account-subtitle">Create your account, verify your email, then add your Groq API key to start exploring.</p>
+    <p className="account-subtitle">Create your account, then add your Groq API key to start exploring.</p>
     {error && <p className="account-error" role="alert">{error}</p>}
     <form onSubmit={handleSubmit} className="account-form">
       <label htmlFor="signup-email">Email<input id="signup-email" type="email" required autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" /></label>

@@ -10,6 +10,8 @@ from .config import get_settings
 
 async def send_account_email(recipient: str, purpose: str, token: str):
     settings = get_settings()
+    if settings.mail_transport == 'disabled':
+        raise RuntimeError('Account email delivery is disabled')
     route = 'verify-email' if purpose == 'verify' else 'reset-password'
     duration = '24 hours' if purpose == 'verify' else '30 minutes'
     # Fixed configured origin, never a request Host header; fragment avoids server/referrer logs.

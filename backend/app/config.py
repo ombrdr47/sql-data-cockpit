@@ -63,6 +63,7 @@ class Settings(BaseSettings):
 
 
     frontend_url: str = "http://localhost:5173"
+    email_verification_required: bool = True
     mail_transport: str = "file"
     gmail_client_id: str = ""
     gmail_client_secret: str = ""
@@ -80,8 +81,10 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_production(self):
-        if self.mail_transport not in {'file', 'smtp', 'gmail_api'}:
-            raise ValueError('MAIL_TRANSPORT must be file, smtp or gmail_api.')
+        if self.mail_transport not in {'disabled', 'file', 'smtp', 'gmail_api'}:
+            raise ValueError('MAIL_TRANSPORT must be disabled, file, smtp or gmail_api.')
+        if self.mail_transport == 'disabled' and self.email_verification_required:
+            raise ValueError('Email verification requires an enabled email transport.')
         if self.mail_transport == 'gmail_api' and not all((self.gmail_client_id, self.gmail_client_secret, self.gmail_refresh_token)):
             raise ValueError('Gmail API delivery requires its OAuth client and refresh token.')
         if self.environment.lower() == 'production':
@@ -92,7 +95,7 @@ class Settings(BaseSettings):
             if not _https_origin(self.frontend_url):
                 raise ValueError('Production FRONTEND_URL must be an explicit HTTPS origin.')
             sender = parseaddr(self.mail_from)[1]
-            if '@' not in sender or '.' not in sender.rsplit('@', 1)[1] or sender.lower().endswith('@localhost'):
+            if self.mail_transport != 'disabled' and ('@' not in sender or '.' not in sender.rsplit('@', 1)[1] or sender.lower().endswith('@localhost')):
                 raise ValueError('Production MAIL_FROM must use a real sender domain.')
             if len(self.jwt_secret_key) < 32 or self.jwt_secret_key == 'CHANGE_ME_IN_PRODUCTION':
                 raise ValueError('Production requires a strong JWT_SECRET_KEY of at least 32 characters.')

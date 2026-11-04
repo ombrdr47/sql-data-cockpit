@@ -52,7 +52,7 @@ async def resolve_api_key(user_id: str) -> str:
     settings = get_settings()
     async with get_appdb_session_factory()() as session:
         user = await session.get(User, UUID(user_id))
-        if user is None or not user.email_verified:
+        if user is None or (settings.email_verification_required and not user.email_verified):
             raise ValueError("Account is unavailable.")
         if user.email == "demo@chinook.dev":
             if settings.environment.lower() == "production":

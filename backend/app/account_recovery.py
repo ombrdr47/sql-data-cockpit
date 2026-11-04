@@ -5,12 +5,17 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select, update
 from .auth import hash_token, create_refresh_token, hash_password
+from .config import get_settings
 from .auth_security import protect_auth
 from .db import get_appdb_session, get_appdb_session_factory
 from .models import User, AccountToken, RefreshToken
 from .account_email import send_account_email
 
-router = APIRouter(prefix='/auth', tags=['auth'], dependencies=[Depends(protect_auth)])
+def require_email_delivery():
+    if get_settings().mail_transport == 'disabled':
+        raise HTTPException(503, 'Email verification and password recovery are currently unavailable.')
+
+router = APIRouter(prefix='/auth', tags=['auth'], dependencies=[Depends(protect_auth), Depends(require_email_delivery)])
 GENERIC = {'message': 'If this account is eligible, an email with the next steps will arrive shortly.'}
 
 class EmailRequest(BaseModel):

@@ -159,7 +159,7 @@ async def test_credentials_resolved_from_encrypted_account_record():
     cm = AsyncMock()
     cm.__aenter__.return_value = session
     with patch('backend.app.db.get_appdb_session_factory', return_value=lambda: cm), \
-         patch('backend.app.llm.get_settings', return_value=SimpleNamespace(jwt_secret_key='unit-test-secret')):
+         patch('backend.app.llm.get_settings', return_value=SimpleNamespace(jwt_secret_key='unit-test-secret', email_verification_required=True)):
         assert await resolve_api_key(str(uuid4())) == 'test-only-secret'
 
 

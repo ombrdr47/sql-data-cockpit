@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="How SQL Cockpit handles account information, connected data, model requests, and service emails." />
+  <title>Privacy policy — SQL Cockpit</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <style>
+    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1d2835; background: #f5f4f0; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-size: 15px; line-height: 1.8; }
+    a { color: #3157db; text-underline-offset: 4px; }
+    a:hover { text-decoration-thickness: 2px; }
+    a:focus-visible { outline: 3px solid #3157db; outline-offset: 5px; border-radius: 2px; }
+    .shell { max-width: 1120px; margin: auto; padding: 0 32px; }
+    .skip { position: absolute; top: -80px; left: 20px; padding: 10px 16px; background: white; z-index: 5; }
+    .skip:focus { top: 12px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 20px; min-height: 90px; border-bottom: 1px solid #dcded9; }
+    .brand { display: inline-flex; align-items: center; gap: 10px; color: inherit; text-decoration: none; font-size: 17px; font-weight: 650; letter-spacing: -.5px; }
+    .brand img { width: 30px; height: 30px; }
+    .back { font-size: 13px; color: #59626b; }
+    .intro { max-width: 800px; padding: 58px 0 38px; }
+    .eyebrow { font-size: 11px; font-weight: 650; letter-spacing: 1.8px; text-transform: uppercase; color: #626d77; }
+    h1 { font-size: clamp(38px, 6vw, 58px); font-weight: 550; line-height: 1.12; letter-spacing: -2px; margin: 16px 0 20px; }
+    .intro > p { max-width: 670px; color: #59626b; font-size: 17px; line-height: 1.7; }
+    .layout { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 54px; align-items: start; padding-bottom: 60px; }
+    aside { position: sticky; top: 28px; padding-top: 20px; font-size: 12px; }
+    aside h2 { margin: 0 0 14px; font-size: 11px; color: #69747b; letter-spacing: 1px; text-transform: uppercase; }
+    aside ol { padding: 0; margin: 0; list-style: none; }
+    aside li { margin-bottom: 10px; }
+    aside a { color: #59626b; text-decoration: none; }
+    aside a:hover { color: #3157db; }
+    article { background: #fdfcf9; border: 1px solid #e0e1da; border-radius: 8px; padding: 10px 38px 30px; }
+    section { padding: 28px 0 16px; scroll-margin-top: 25px; }
+    section + section { border-top: 1px solid #e5e5de; }
+    h2 { font-size: 21px; font-weight: 600; line-height: 1.4; letter-spacing: -.5px; margin: 0 0 14px; }
+    h3 { font-size: 15px; font-weight: 650; margin: 22px 0 8px; }
+    p { margin: 0 0 16px; }
+    li { margin-bottom: 10px; }
+    ul { padding-left: 21px; }
+    code { font-family: ui-monospace, monospace; font-size: .88em; }
+    .table-wrap { overflow-x: auto; margin: 20px 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+    th, td { vertical-align: top; padding: 12px; border-bottom: 1px solid #e3e4dc; }
+    th { color: #59626b; font-weight: 600; background: #f3f3ed; }
+    .note { padding: 15px 18px; border: 1px solid #d6dce9; border-radius: 5px; background: #f2f4f9; font-size: 14px; }
+    footer { padding: 23px 0 35px; border-top: 1px solid #dcded9; display: flex; justify-content: space-between; flex-wrap: wrap; gap: 14px; font-size: 12px; color: #69747b; }
+    footer a { color: inherit; }
+    @media (max-width: 800px) { .layout { grid-template-columns: 1fr; gap: 20px; } aside { position: static; padding-top: 0; } aside ol { display: flex; flex-wrap: wrap; gap: 6px 18px; } aside li { margin: 0; } .intro { padding-top: 38px; } }
+    @media (max-width: 480px) { .shell { padding-inline: 20px; } article { padding-inline: 20px; } header { min-height: 76px; } .intro > p { font-size: 16px; } h1 { letter-spacing: -1.5px; } }
+    @media print { aside, .skip, .back { display: none; } .layout { display: block; } article { border: 0; padding: 0; } .shell { max-width: none; } body { background: white; font-size: 11pt; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#policy">Skip to privacy policy</a>
+  <div class="shell">
+    <header>
+      <a class="brand" href="/"><img src="/favicon.svg" alt="" />SQL Cockpit</a>
+      <a class="back" href="/">Back to home &rarr;</a>
+    </header>
+    <div class="intro">
+      <span class="eyebrow">Your information, explained</span>
+      <h1>Privacy policy</h1>
+      <p>What SQL Cockpit processes when you create an account, connect a database, ask a question, or receive an account email.</p>
+      <p class="eyebrow" style="margin-top:26px">Effective 4 November 2026</p>
+    </div>
+    <div class="layout">
+      <aside aria-label="Policy contents">
+        <h2>On this page</h2>
+        <ol>
+          <li><a href="#about">About and contact</a></li>
+          <li><a href="#information">Information we process</a></li>
+          <li><a href="#purposes">Why we use it</a></li>
+          <li><a href="#ai">AI and connected databases</a></li>
+          <li><a href="#google">Google and account email</a></li>
+          <li><a href="#providers">Service providers</a></li>
+          <li><a href="#storage">Cookies and browser requests</a></li>
+          <li><a href="#retention">Retention and deletion</a></li>
+          <li><a href="#choices">Your choices and requests</a></li>
+          <li><a href="#updates">Policy updates</a></li>
+        </ol>
+      </aside>
+      <article id="policy">
+        <section id="about">
+          <h2>1. About and contact</h2>
+          <p>SQL Cockpit is a database-analysis application that turns questions into proposed SQL, shows query results, and lets you keep useful analyses. This policy describes the application operated at <a href="https://sql-data-cockpit.vercel.app/">sql-data-cockpit.vercel.app</a>.</p>
+          <p>For privacy questions or requests, contact the operator at <a href="mailto:omb4027@gmail.com">omb4027@gmail.com</a>.</p>
+        </section>
+        <section id="information">
+          <h2>2. Information we process</h2>
+          <p>The information processed depends on the features you use and what is available in the deployed version.</p>
+          <ul>
+            <li><strong>Account information:</strong> your email address, username, password hash, email-verification status, session information and account timestamps. Passwords are stored as hashes rather than as recoverable account passwords.</li>
+            <li><strong>Connection and model settings:</strong> database host, port, database name, username, password, connection status and any model-provider API key you configure. Connection credentials, optional reference documents and model keys use field-level encryption in their saved application records.</li>
+            <li><strong>Analysis content:</strong> questions, uploaded reference documents, schema information, generated SQL, query-result values, model answers, conversation history, saved analyses and result snapshots. Workflow checkpoints can also retain context needed to continue an interrupted analysis.</li>
+            <li><strong>Operational information:</strong> connection-test timestamps, usage counters, and IP addresses used for request throttling. Hosting services may also process IP addresses, request metadata and operational logs.</li>
+          </ul>
+          <p>Information you include in a question or reference document becomes part of that analysis content, even when you include it accidentally.</p>
+        </section>
+        <section id="purposes">
+          <h2>3. Why we use it</h2>
+          <p>We process this information to create and secure accounts, verify email ownership, recover access, connect authorized databases, generate and execute approved queries, provide answers, save and rerun analyses, and investigate service errors or abuse.</p>
+          <p>The application does not implement advertising or the sale of personal information. The operator and service providers may access information as necessary to operate, support and secure the service.</p>
+        </section>
+        <section id="ai">
+          <h2>4. AI and connected databases</h2>
+          <p>SQL Cockpit currently uses Groq for model requests. Depending on the task, requests can include your question, relevant conversation context, schema details, uploaded business references, proposed SQL, database errors and query-result values. Database values used as model context can contain personal or confidential information.</p>
+          <p class="note"><strong>This service is not a zero-data-egress database tool.</strong> Information used in an analysis can leave your database and be processed by the backend, model provider and application storage.</p>
+          <p>After approval, SQL is executed by the backend against the selected database. Only connect sources you are authorized to use, and grant the database role access only to the tables and columns this workspace should be allowed to query. Review proposed SQL and avoid submitting unnecessary sensitive information.</p>
+          <p>The model provider’s own data-handling terms also apply. This policy does not promise that provider processing has no retention or that all providers use the same controls.</p>
+        </section>
+        <section id="google">
+          <h2>5. Google and account email</h2>
+          <p>The operator authorizes the Gmail API with the <code>gmail.send</code> scope to send service messages, such as email-verification and password-reset links, from the operator’s mailbox. This integration does not request permission to read the mailbox. It is separate from creating a SQL Cockpit account; users are not asked to authorize their own Gmail inboxes.</p>
+          <p>Google processes the recipient address, email headers and message body when delivering these emails. Verification and reset messages contain a time-limited account link. Operator OAuth credentials and refresh authorization are kept in backend secret settings; short-lived access tokens are used to call Google’s mail service.</p>
+          <p>We use the Google authorization and related data only to provide these service-email functions. We do not use it for advertising or model training. SQL Cockpit’s use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" rel="noreferrer">Google API Services User Data Policy</a>, including its Limited Use requirements.</p>
+        </section>
+        <section id="providers">
+          <h2>6. Service providers</h2>
+          <p>The service uses the following providers to operate the application:</p>
+          <div class="table-wrap"><table>
+            <caption style="text-align:left;margin-bottom:10px;color:#59626b">Where information is processed</caption>
+            <thead><tr><th scope="col">Provider</th><th scope="col">Function and relevant information</th></tr></thead>
+            <tbody>
+              <tr><td>Vercel</td><td>Hosts the frontend and processes browser requests and hosting metadata.</td></tr>
+              <tr><td>Render</td><td>Runs the backend, including account operations, database connections, model requests and configured secrets.</td></tr>
+              <tr><td>Supabase</td><td>Hosts the application database and sample database, including persisted account, analysis and workflow records.</td></tr>
+              <tr><td>Groq</td><td>Processes the model inputs described above and returns generated queries and answers.</td></tr>
+              <tr><td>Google</td><td>Provides OAuth authorization and Gmail email delivery; Google Fonts also serves font resources used by the app.</td></tr>
+              <tr><td>Plotly’s CDN</td><td>Serves the chart library requested by the browser.</td></tr>
+            </tbody>
+          </table></div>
+          <p>These providers process information under their applicable terms and policies. Processing locations depend on the configured hosting regions and provider infrastructure and may be outside your country.</p>
+        </section>
+        <section id="storage">
+          <h2>7. Cookies and browser requests</h2>
+          <p>SQL Cockpit uses an HTTP-only refresh-session cookie to maintain sign-in. Access tokens are held in browser memory rather than intentionally saved to local storage. The browser also holds temporary interface and query state while the app is open.</p>
+          <p>The main application loads fonts from Google Fonts and a chart library from Plotly’s CDN. Those requests expose normal connection information, such as an IP address and browser request headers, to the resource providers. Provider-managed hosting logs or controls may also apply.</p>
+        </section>
+        <section id="retention">
+          <h2>8. Retention and deletion</h2>
+          <p>Account records, conversation content, saved analyses, connection settings and workflow context can remain stored while the service is in use. A general automatic retention or purge schedule is not currently implemented. Token expiry limits whether an authentication link or session can be used; it does not necessarily erase the stored record.</p>
+          <p>Available controls let you remove connections, reference documents or conversations. Saved analyses and their result snapshots currently require an operator request for removal. Removing a connection or document does not automatically erase information already copied into a conversation, saved result or workflow checkpoint. Deleting a conversation from the normal application records does not guarantee immediate removal of its checkpoint copies, backups or provider records.</p>
+          <p>To request account deletion, access to your information, or removal of retained analysis context, email <a href="mailto:omb4027@gmail.com">omb4027@gmail.com</a>. These requests require operator review and ownership verification; the application does not currently offer automated account deletion or a guaranteed deletion deadline. Some information may need to be retained for security or applicable obligations.</p>
+          <p>Field-level encryption for saved credentials and references is not a claim that all conversation, result and checkpoint content uses the same application-level encryption. Access controls and provider protections also apply, and no system can guarantee absolute security.</p>
+        </section>
+        <section id="choices">
+          <h2>9. Your choices and requests</h2>
+          <p>You can choose which database role to connect, omit optional reference documents, inspect a proposed query before approving it, and use the available removal controls. Do not share a personal workspace login or connect confidential databases through a shared demo account.</p>
+          <p>You can contact the operator about privacy, access, correction or deletion requests. Available rights and requirements can depend on your location and circumstances. Do not send database passwords, API keys or full database exports with a support request.</p>
+        </section>
+        <section id="updates">
+          <h2>10. Policy updates</h2>
+          <p>This page shows the effective date of this policy. Future versions will describe material changes to the service’s data handling. Where Google’s policies require renewed consent for a changed use of Google data, that consent must be obtained before the new use.</p>
+          <p>Questions about this policy can be sent to <a href="mailto:omb4027@gmail.com">omb4027@gmail.com</a>.</p>
+        </section>
+      </article>
+    </div>
+    <footer><span>SQL Cockpit · Privacy policy</span><a href="mailto:omb4027@gmail.com">Privacy contact</a><a href="/">Back to SQL Cockpit</a></footer>
+  </div>
+</body>
+</html>
