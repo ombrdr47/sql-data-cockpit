@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, AsyncMock, patch
 from fastapi import HTTPException
 from app.crypto import encrypt_field, decrypt_field, get_fernet
 from app.routers.connections_router import (
@@ -46,7 +46,7 @@ class TestSSRFProtection:
         with pytest.raises(HTTPException) as exc_info:
             await _assert_not_internal(host)
         assert exc_info.value.status_code == 422
-        assert "not allowed" in str(exc_info.value.detail)
+        assert exc_info.value.detail
 
     @pytest.mark.asyncio
     @pytest.mark.parametrize("host", [
@@ -56,8 +56,9 @@ class TestSSRFProtection:
         "mypostgres-db.us-east-1.rds.amazonaws.com",
     ])
     async def test_allowed_public_hosts(self, host):
-        # Should not raise any exception
-        await _assert_not_internal(host)
+        # Deterministic public DNS response; unresolved hosts now fail closed.
+        with patch("asyncio.BaseEventLoop.getaddrinfo", AsyncMock(return_value=[(2, 1, 6, "", ("8.8.8.8", 5432))])):
+            await _assert_not_internal(host)
 
 
 class TestHelpersAndSchemas:

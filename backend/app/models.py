@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import (
-    Boolean, DateTime, ForeignKey, Integer, SmallInteger, String, Text, func
+    Boolean, DateTime, ForeignKey, Integer, String, Text, func
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID as PG_UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -28,6 +28,8 @@ class User(Base):
     username: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(Text, nullable=False)
     role: Mapped[str] = mapped_column(String, nullable=False, default="user")
+    email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    session_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     # Fernet-encrypted Groq API key — NULL means user has not configured one yet
     groq_api_key_enc: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -85,10 +87,11 @@ class UserConnection(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     # Encrypted credential fields
     host_enc: Mapped[str] = mapped_column(Text, nullable=False)
-    port: Mapped[int] = mapped_column(SmallInteger, nullable=False, default=5432)
+    port: Mapped[int] = mapped_column(Integer, nullable=False, default=5432)
     database_enc: Mapped[str] = mapped_column(Text, nullable=False)
     username_enc: Mapped[str] = mapped_column(Text, nullable=False)
     password_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    references_enc: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Connection health
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="untested")
     last_tested_at: Mapped[Optional[datetime]] = mapped_column(
@@ -109,6 +112,8 @@ class UserConnection(Base):
 
 class Conversation(Base):
     __tablename__ = "conversations"
+
+    source_deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
 
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -155,6 +160,7 @@ class Message(Base):
     role: Mapped[str] = mapped_column(String(20), nullable=False)  # "user" | "assistant"
     content: Mapped[str] = mapped_column(Text, nullable=False)
     generated_sql: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    analysis_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     chart_base64: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     retry_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     node_path: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
@@ -165,3 +171,34 @@ class Message(Base):
     conversation: Mapped["Conversation"] = relationship(
         "Conversation", back_populates="messages"
     )
+
+
+class SavedAnalysis(Base):
+    __tablename__ = "saved_analyses"
+
+    id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    name: Mapped[str] = mapped_column(String(120), nullable=False)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    sql: Mapped[str] = mapped_column(Text, nullable=False)
+    connection_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("user_connections.id", ondelete="SET NULL"), nullable=True,
+    )
+    is_demo: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    source_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    snapshot: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AccountToken(Base):
+    __tablename__ = "account_tokens"
+    id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    purpose: Mapped[str] = mapped_column(String(20), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

@@ -18,6 +18,36 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .models import Conversation, Message
 
 
+async def get_conversation_context(
+    session: AsyncSession, conversation_id: UUID, user_id: UUID,
+) -> str:
+    """Load a bounded, owner-scoped history before saving the new question.
+
+    SQL is included to preserve filters and joins from earlier answers. Charts,
+    credentials and raw result tables are not included. Context is historical
+    input, not a source of instructions or permission to access other tables.
+    """
+    result = await session.execute(
+        select(Message)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .where(Conversation.id == conversation_id, Conversation.user_id == user_id)
+        .where(Message.role.in_(["user", "assistant"]))
+        .order_by(Message.created_at.desc(), Message.id.desc())
+        .limit(12)
+    )
+    blocks = []
+    remaining = 16000
+    for message in result.scalars().all():
+        block = f"{message.role}: {message.content[:2000]}"
+        if message.role == "assistant" and message.generated_sql:
+            block += f"\nPrevious SQL:\n{message.generated_sql[:6000]}"
+        if len(block) > remaining:
+            break
+        blocks.append(block)
+        remaining -= len(block) + 2
+    return "\n\n".join(reversed(blocks))
+
+
 # ── Conversation CRUD ─────────────────────────────────────────────────────────
 
 async def create_conversation(
@@ -88,6 +118,7 @@ async def add_message(
     chart_base64: Optional[str] = None,
     retry_count: Optional[int] = None,
     node_path: Optional[list[str]] = None,
+    analysis_data: Optional[dict] = None,
 ) -> Message:
     msg = Message(
         conversation_id=conversation_id,
@@ -97,6 +128,7 @@ async def add_message(
         chart_base64=chart_base64,
         retry_count=retry_count,
         node_path=node_path,
+        analysis_data=analysis_data,
     )
     session.add(msg)
     await session.flush()

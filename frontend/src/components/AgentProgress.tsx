@@ -4,7 +4,7 @@
  * All logic (state, steps, isStreaming) preserved verbatim.
  */
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
 
 export interface ReasoningStep {
   node: string
@@ -41,6 +41,13 @@ const NODE_DOT_COLORS: Record<string, string> = {
 
 export default function AgentProgress({ steps, isStreaming }: AgentProgressProps) {
   const [isOpen, setIsOpen] = useState(true)
+  const reduceMotion = useReducedMotion()
+  const labels: Record<string, string> = {
+    table_selector: 'Finding relevant tables…', generate_sql: 'Preparing your query…',
+    validate_sql: 'Checking the SQL…', execute_sql: 'Running the approved query…',
+    synthesize_answer: 'Explaining the results…', python_tool: 'Preparing a chart…',
+    increment_retry: 'Revising the query…', decide_next_step: 'Checking the next step…',
+  }
 
   if (steps.length === 0) return null
 
@@ -63,8 +70,8 @@ export default function AgentProgress({ steps, isStreaming }: AgentProgressProps
         )}
         <span className="font-medium">
           {isStreaming
-            ? 'Thinking…'
-            : `Done in ${steps.length} steps · ${isOpen ? 'collapse' : 'expand'}`}
+            ? labels[steps.at(-1)?.node ?? ''] ?? 'Processing your question…'
+            : `Activity · ${steps.length} steps · ${isOpen ? 'collapse' : 'expand'}`}
         </span>
         <svg
           className={`w-3 h-3 ml-auto transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
@@ -77,10 +84,10 @@ export default function AgentProgress({ steps, isStreaming }: AgentProgressProps
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
+            initial={reduceMotion ? false : { height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
+            transition={{ duration: reduceMotion ? 0 : 0.2, ease: 'easeOut' }}
             className="overflow-hidden"
           >
             <div className="mt-2 pl-1 border-l border-white/[0.10] ml-1.5">
@@ -92,9 +99,9 @@ export default function AgentProgress({ steps, isStreaming }: AgentProgressProps
                 return (
                   <motion.div
                     key={`${step.node}-${idx}`}
-                    initial={{ opacity: 0, x: -8 }}
+                    initial={reduceMotion ? false : { opacity: 0, x: -8 }}
                     animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.2, delay: 0.05 * idx }}
+                    transition={{ duration: reduceMotion ? 0 : 0.2, delay: 0 }}
                     className="relative flex items-start gap-3 pb-3 pl-4"
                   >
                     <span

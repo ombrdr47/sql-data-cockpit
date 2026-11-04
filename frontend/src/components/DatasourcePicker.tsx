@@ -9,6 +9,7 @@ interface Props {
   connections: UserConnection[]
   selectedId: string | null   // null = Chinook demo
   onChange: (id: string | null) => void
+  disabled?: boolean
 }
 
 const STATUS_DOT: Record<string, string> = {
@@ -18,7 +19,7 @@ const STATUS_DOT: Record<string, string> = {
   untested:    '#fbbf24',
 }
 
-export default function DatasourcePicker({ connections, selectedId, onChange }: Props) {
+export default function DatasourcePicker({ connections, selectedId, onChange, disabled = false }: Props) {
   const selectedConn = connections.find((c) => c.id === selectedId)
   const dotColor = selectedId && selectedConn ? STATUS_DOT[selectedConn.status] ?? '#94a3b8' : null
 
@@ -41,6 +42,8 @@ export default function DatasourcePicker({ connections, selectedId, onChange }: 
       {/* Native select — styled transparently */}
       <select
         id="datasource-picker"
+        aria-label="Data source"
+        disabled={disabled}
         value={selectedId ?? ''}
         onChange={(e) => onChange(e.target.value || null)}
         className="flex-1 min-w-0 bg-transparent border-none outline-none
@@ -48,10 +51,10 @@ export default function DatasourcePicker({ connections, selectedId, onChange }: 
                    appearance-none truncate"
         style={{ colorScheme: 'dark' }}
       >
-        <option value="">🎵 Chinook Demo</option>
+        <option value="">Chinook sample</option>
         {connections.map((c) => (
           <option key={c.id} value={c.id}>
-            🔗 {c.name}
+            {c.name}
           </option>
         ))}
       </select>

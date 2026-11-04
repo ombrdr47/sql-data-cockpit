@@ -12,6 +12,7 @@ langgraph-checkpoint-postgres==2.0.9
 
 # ── Database ──────────────────────────────────────────────────────────────────
 sqlalchemy==2.0.36
+certifi>=2024.8.30             # public CA trust for verified database TLS
 asyncpg==0.30.0
 psycopg2-binary==2.9.10        # for LangGraph PostgresSaver (sync)
 psycopg[binary]==3.2.3         # langgraph-checkpoint-postgres requires psycopg v3

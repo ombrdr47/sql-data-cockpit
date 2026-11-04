@@ -46,6 +46,8 @@ def _make_convo(conversation_id: str, user_id: str):
     mock_convo.id = uuid.UUID(conversation_id)
     mock_convo.user_id = uuid.UUID(user_id)
     mock_convo.title = "Test Conversation"
+    mock_convo.connection_id = None
+    mock_convo.source_deleted = False
     return mock_convo
 
 
@@ -98,6 +100,7 @@ def _override_deps(app, user_id: str, convo=None, session=None):
 
     mock_user = _make_user(user_id)
     mock_session = session or _make_mock_session()
+    app.state.graph.aget_state = AsyncMock(return_value=MagicMock(values={"user_id": user_id, "review_token": "test-review", "hitl_approved": None}, next=("human_review",)))
 
     async def _fake_user():
         return mock_user
@@ -273,7 +276,7 @@ class TestReviewEndpoint:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
             resp = await client.post(
                 f"/chat/review/{conversation_id}",
-                json={"approved": True},
+                json={"review_token": "test-review", "approved": True},
             )
         assert resp.status_code == 401
 
@@ -286,7 +289,7 @@ class TestReviewEndpoint:
                 async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                     resp = await client.post(
                         f"/chat/review/{fake_id}",
-                        json={"approved": True},
+                        json={"review_token": "test-review", "approved": True},
                         headers={"Authorization": f"Bearer {_make_access_token(user_id)}"},
                     )
             assert resp.status_code == 404
@@ -300,7 +303,7 @@ class TestReviewEndpoint:
             async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                 resp = await client.post(
                     "/chat/review/not-a-valid-uuid",
-                    json={"approved": True},
+                    json={"review_token": "test-review", "approved": True},
                     headers={"Authorization": f"Bearer {_make_access_token(user_id)}"},
                 )
             assert resp.status_code == 400
@@ -320,7 +323,7 @@ class TestReviewEndpoint:
                 async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                     resp = await client.post(
                         f"/chat/review/{conv_id}",
-                        json={"approved": True},
+                        json={"review_token": "test-review", "approved": True},
                         headers={"Authorization": f"Bearer {_make_access_token(attacker_id, 'attacker@example.com')}"},
                     )
             assert resp.status_code == 404
@@ -345,7 +348,7 @@ class TestReviewEndpoint:
                 async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                     resp = await client.post(
                         f"/chat/review/{conversation_id}",
-                        json={"approved": True},
+                        json={"review_token": "test-review", "approved": True},
                         headers={"Authorization": f"Bearer {_make_access_token(user_id)}"},
                     )
             assert resp.status_code == 409
@@ -382,7 +385,7 @@ class TestReviewEndpoint:
                 async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                     resp = await client.post(
                         f"/chat/review/{conversation_id}",
-                        json={"approved": True},
+                        json={"review_token": "test-review", "approved": True},
                         headers={"Authorization": f"Bearer {_make_access_token(user_id)}"},
                     )
         finally:
@@ -421,7 +424,7 @@ class TestReviewEndpoint:
                 async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                     resp = await client.post(
                         f"/chat/review/{conversation_id}",
-                        json={"approved": False, "feedback": "Add a LIMIT clause"},
+                        json={"review_token": "test-review", "approved": False, "feedback": "Add a LIMIT clause"},
                         headers={"Authorization": f"Bearer {_make_access_token(user_id)}"},
                     )
         finally:
@@ -459,7 +462,7 @@ class TestReviewEndpoint:
                 async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
                     resp = await client.post(
                         f"/chat/review/{conversation_id}",
-                        json={"approved": False},
+                        json={"review_token": "test-review", "approved": False},
                         headers={"Authorization": f"Bearer {_make_access_token(user_id)}"},
                     )
             assert resp.status_code == 200
@@ -552,3 +555,17 @@ class TestHealthEndpoint:
         data = resp.json()
         major, minor, _ = data["version"].split(".")
         assert (int(major), int(minor)) >= (2, 1), f"Expected version >= 2.1.0, got {data['version']}"
+
+
+@pytest.fixture(autouse=True)
+def isolated_workflow_io(app):
+    """HTTP tests mock storage; lock policy is covered separately; live PostgreSQL verification is a release check."""
+    from contextlib import asynccontextmanager
+    @asynccontextmanager
+    async def guard(*args):
+        yield
+    factory = MagicMock(return_value=AsyncMock())
+    with patch('backend.app.db.get_appdb_session_factory', return_value=factory), \
+         patch('backend.app.workflow_security.workflow_guard', guard), \
+         patch('backend.app.main.get_conversation_context', AsyncMock(return_value='')):
+        yield

@@ -28,12 +28,14 @@ from ..auth import (
 )
 from ..db import get_appdb_session
 from ..config import get_settings
-from ..models import User, RefreshToken
+from ..models import User, RefreshToken, AccountToken
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+from ..auth_security import protect_auth, require_personal_account
+
+router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(protect_auth)])
+DUMMY_PASSWORD_HASH = hash_password("unusable-dummy-verification-password")
 
 COOKIE_NAME = "refresh_token"
-COOKIE_MAX_AGE = 7 * 24 * 3600  # 7 days in seconds
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -56,6 +58,8 @@ class SignupRequest(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError('Password must not exceed 72 UTF-8 bytes.')
         if len(v) < 8:
             raise ValueError("Password must be at least 8 characters.")
         return v
@@ -72,6 +76,8 @@ class ChangePasswordRequest(BaseModel):
     @field_validator("new_password")
     @classmethod
     def validate_new_password(cls,v:str)->str:
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError('Password must not exceed 72 UTF-8 bytes.')
         if(len(v)<8):
             raise ValueError("Password must be atleast 8 characters")
         return v
@@ -105,14 +111,16 @@ class TokenResponse(BaseModel):
 def _set_refresh_cookie(response: Response, token: str) -> None:
     settings = get_settings()
     is_secure = settings.environment.lower() == "production" or settings.secure_cookies
+    # Remove the old narrower cookie to avoid duplicate names on refresh.
+    response.delete_cookie(key=COOKIE_NAME, path="/auth/refresh")
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
         httponly=True,
         secure=is_secure,
         samesite="none" if is_secure else "lax",
-        max_age=COOKIE_MAX_AGE,
-        path="/auth/refresh",
+        max_age=settings.refresh_token_expire_days * 24 * 3600,
+        path="/auth",
     )
 
 
@@ -120,7 +128,6 @@ def _set_refresh_cookie(response: Response, token: str) -> None:
 
 @router.post(
     "/signup",
-    response_model=TokenResponse,
     status_code=status.HTTP_201_CREATED,
 )
 async def signup(
@@ -157,29 +164,14 @@ async def signup(
     await session.flush()
     await session.refresh(user)
 
-    access_token = create_access_token(str(user.id), user.email)
-    refresh_token = create_refresh_token()
-    await store_refresh_token(session, user.id, refresh_token)
-    await session.commit()
-
-    _set_refresh_cookie(response, refresh_token)
-
-    user_obj = UserResponse(
-        user_id=str(user.id),
-        username=user.username,
-        email=user.email,
-        role="user",
-        created_at=user.created_at or datetime.now(timezone.utc),
-    )
-
-    return TokenResponse(
-        access_token=access_token,
-        user_id=str(user.id),
-        username=user.username,
-        email=user.email,
-        user=user_obj,
-    )
-
+    from ..account_recovery import issue_link
+    try:
+        await issue_link(session, user, 'verify')
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        raise HTTPException(503, 'We could not send the verification email. Please try again later.')
+    return {'message': 'Check your email to verify your account before signing in.'}
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -192,13 +184,18 @@ async def login(
     user = result.scalar_one_or_none()
 
     # Constant-time check (verify even if user not found, to prevent timing attacks)
-    if user is None or not verify_password(body.password, user.hashed_password):
+    password_valid = verify_password(body.password, user.hashed_password if user else DUMMY_PASSWORD_HASH)
+    if user is None or not password_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
 
-    access_token = create_access_token(str(user.id), user.email)
+    if not user.email_verified:
+        raise HTTPException(403, detail="email_not_verified")
+    if user.email == "demo@chinook.dev" and get_settings().environment.lower() == "production":
+        raise HTTPException(status_code=403, detail="Shared demo access is disabled in production.")
+    access_token = create_access_token(str(user.id), user.email, user.session_version)
     refresh_token = create_refresh_token()
     await store_refresh_token(session, user.id, refresh_token)
     await session.commit()
@@ -238,7 +235,11 @@ async def refresh(
     user, new_refresh_token = await rotate_refresh_token(session, refresh_token)
     await session.commit()
 
-    access_token = create_access_token(str(user.id), user.email)
+    if not user.email_verified:
+        raise HTTPException(403, detail="email_not_verified")
+    if user.email == "demo@chinook.dev" and get_settings().environment.lower() == "production":
+        raise HTTPException(status_code=403, detail="Shared demo access is disabled in production.")
+    access_token = create_access_token(str(user.id), user.email, user.session_version)
     _set_refresh_cookie(response, new_refresh_token)
 
     user_obj = UserResponse(
@@ -267,9 +268,7 @@ async def logout(
 ):
     """Revoke the refresh token and clear the cookie."""
     if refresh_token:
-        # from ..auth import hash_token
         token_hash = hash_token(refresh_token)
-        # from sqlalchemy import update
         await session.execute(
             update(RefreshToken)
             .where(RefreshToken.token_hash == token_hash)
@@ -278,6 +277,7 @@ async def logout(
         await session.commit()
 
     response.delete_cookie(key=COOKIE_NAME, path="/auth/refresh")
+    response.delete_cookie(key=COOKIE_NAME, path="/auth")
 
 
 @router.get("/me", response_model=UserResponse)
@@ -296,6 +296,7 @@ async def change_Password(body:ChangePasswordRequest,
                           current_user:User=Depends(get_current_user),
                           session:AsyncSession=Depends(get_appdb_session),
 ):
+    require_personal_account(current_user)
     if not verify_password(body.current_password,current_user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -307,7 +308,15 @@ async def change_Password(body:ChangePasswordRequest,
             detail="New password must be different from a current password"
         )
 
+    # Serialize password changes with recovery and invalidate all older JWTs.
+    current_user = await session.scalar(select(User).where(User.id == current_user.id).with_for_update().execution_options(populate_existing=True))
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(401, 'Current password is incorrect')
     current_user.hashed_password=hash_password(body.new_password)
+    current_user.session_version += 1
+    await session.execute(
+        update(AccountToken).where(AccountToken.user_id == current_user.id, AccountToken.purpose == 'reset', AccountToken.consumed_at.is_(None)).values(consumed_at=datetime.now(timezone.utc))
+    )
 
     await session.execute(
         update(RefreshToken)

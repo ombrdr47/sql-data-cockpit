@@ -106,3 +106,14 @@ def hitl_state():
         "hitl_approved": None,
         "hitl_feedback": None,
     }
+
+
+@pytest.fixture(autouse=True)
+def node_credentials():
+    """Node unit tests resolve credentials without a live account database."""
+    from contextlib import ExitStack
+    from unittest.mock import patch, AsyncMock
+    with ExitStack() as stack:
+        for module in ('generate_sql', 'synthesize_answer', 'table_selector'):
+            stack.enter_context(patch(f'backend.app.nodes.{module}.resolve_api_key', AsyncMock(return_value='test_key')))
+        yield

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import httpx
 
 from ..auth import get_current_user
+from ..auth_security import require_personal_account
 from ..crypto import get_fernet, encrypt_field, decrypt_field
 from ..config import get_settings
 from ..db import get_appdb_session
@@ -91,6 +92,7 @@ async def save_api_key(
     Validate the provided Groq API key, then encrypt and save it.
     Returns 422 if the key is rejected by Groq.
     """
+    require_personal_account(current_user)
     api_key = body.api_key.strip()
 
     if not api_key.startswith("gsk_"):
@@ -125,6 +127,7 @@ async def delete_api_key(
     session: AsyncSession = Depends(get_appdb_session),
 ):
     """Remove the stored Groq API key for the current user."""
+    require_personal_account(current_user)
     await session.execute(
         update(User)
         .where(User.id == current_user.id)

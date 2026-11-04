@@ -67,10 +67,10 @@ jobs:
             -c "CREATE ROLE appuser WITH LOGIN PASSWORD 'apppass';"
           PGPASSWORD=postgres psql -h localhost -U postgres \
             -c "GRANT ALL PRIVILEGES ON DATABASE app_db TO appuser;"
+          APP_DB_SYNC_URL=postgresql://postgres:postgres@localhost:5432/app_db \
+            python -m alembic --config backend/alembic.ini upgrade head
           PGPASSWORD=postgres psql -h localhost -U postgres -d app_db \
-            -f backend/data/init_app_db.sql
-          PGPASSWORD=postgres psql -h localhost -U postgres -d app_db \
-            -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO appuser;"
+            -c "GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO appuser; GRANT USAGE, CREATE ON SCHEMA public TO appuser;"
 
           # ── read-only chinook_ro role ─────────────────────────────────────
           PGPASSWORD=postgres psql -h localhost -U postgres -d chinook \
@@ -79,6 +79,9 @@ jobs:
       - name: Run unit tests
         run: |
           python -m pytest backend/tests/ -v --tb=short -x 2>&1
+
+      - name: Verify persisted approvals, quotas and account isolation
+        run: python -m backend.tests.live_security_check
 
   # ── Frontend: type check + build ──────────────────────────────────────────
   frontend-build:
@@ -107,7 +110,7 @@ jobs:
 
   # ── Eval (runs only on push to main — not on PRs) ─────────────────────────
   eval:
-    name: Eval (Simple category)
+    name: Live sample accuracy (optional key)
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [backend-test]
@@ -130,6 +133,8 @@ jobs:
     env:
       GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
       JWT_SECRET_KEY: ci-test-secret-key-at-least-32-chars-long
+      GROQ_MODEL: ${{ vars.GROQ_MODEL || 'openai/gpt-oss-120b' }}
+      APP_DB_SYNC_URL: postgresql://appuser:apppass@localhost:5432/app_db
       CHINOOK_DB_URL: postgresql+asyncpg://chinook_ro:readonlypass@localhost:5432/chinook
       APP_DB_URL: postgresql+asyncpg://appuser:apppass@localhost:5432/app_db
 
@@ -153,5 +158,19 @@ jobs:
           PGPASSWORD=postgres psql -h localhost -U postgres -d chinook \
             -f backend/data/init_readonly_role.sql
 
-      - name: Run eval (simple category only)
-        run: python -m backend.eval.run_eval --category simple --verbose
+      - name: Set up migrated evaluation identity database
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE app_db;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE ROLE appuser WITH LOGIN PASSWORD 'apppass';"
+          APP_DB_SYNC_URL=postgresql://postgres:postgres@localhost:5432/app_db \
+            python -m alembic --config backend/alembic.ini upgrade head
+          PGPASSWORD=postgres psql -h localhost -U postgres -d app_db \
+            -c "GRANT USAGE ON SCHEMA public TO appuser; GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO appuser;"
+
+      - name: Run eight live sample accuracy cases
+        if: env.GROQ_API_KEY != ''
+        run: python -m backend.ops.check_accuracy --ci
+
+      - name: Explain skipped live evaluation
+        if: env.GROQ_API_KEY == ''
+        run: echo "Live model evaluation skipped because GROQ_API_KEY is not configured."

@@ -7,9 +7,9 @@ Routing:
   connection_id set   → BYODB user engine (read-only via server_settings)
 
 Safety layers (defence in depth):
-  1. chinook_ro role / default_transaction_read_only=on — cannot write even if bypassed
-  2. statement_timeout=5s set on Chinook role; 6s Python backstop on both paths
-  3. row_cap enforced here in Python (fetchmany) as a second row-level guard
+  1. chinook_ro role / default_transaction_read_only=on — additional protection; least-privilege database grants are required
+  2. statement_timeout=5s on customer sessions and Chinook role; 6s Python backstop
+  3. SQL-level outer LIMIT plus fetchmany bounds result rows
   4. Returns sql_columns alongside sql_results so the frontend can
      render a proper DataTable with ordered column headers.
 """
@@ -28,6 +28,7 @@ async def _execute_byodb(sql: str, connection_id: str, row_cap: int) -> tuple[li
 
     engine = await engine_pool.get_engine(uuid.UUID(connection_id))
     async with engine.connect() as conn:
+        await conn.execute(text("SET TRANSACTION READ ONLY"))
         result = await conn.execute(text(sql))
         keys = list(result.keys())
         rows = result.fetchmany(row_cap)
@@ -45,13 +46,15 @@ async def execute_sql_node(state: AgentState) -> AgentState:
     connection_id = state.get("connection_id")
 
     try:
+        from ..sql_policy import bounded_query
+        sql = bounded_query(sql, settings.sql_row_cap)
         if connection_id:
             # ── BYODB path ────────────────────────────────────────────────────
             rows, keys = await asyncio.wait_for(
                 _execute_byodb(sql, connection_id, settings.sql_row_cap),
                 timeout=6.0,
             )
-            sql_columns = keys if rows else []
+            sql_columns = keys
         else:
             # ── Chinook path (unchanged) ──────────────────────────────────────
             rows = await asyncio.wait_for(

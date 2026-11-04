@@ -1,42 +1,58 @@
 /**
  * pages/Chat.tsx
- * Main console interface — restyled per UI.md.
- * All SSE streaming logic, HITL flow, conversation management,
- * and API calls are preserved verbatim. Only JSX markup and class names changed.
+ * Analysis workspace: streaming conversations, SQL approval, and saved results.
  */
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import MessageBubble, { type Message, type TableData } from '../components/MessageBubble'
 import Sidebar from '../components/Sidebar'
 import { type ReasoningStep } from '../components/AgentProgress'
-import api, { getAccessToken, attemptTokenRefresh, setAccessToken, connectionsApi, type UserConnection } from '../lib/api'
+import api, { getAccessToken, attemptTokenRefresh, setAccessToken, connectionsApi, type UserConnection, type SavedAnalysis, type AnalysisSnapshot } from '../lib/api'
 import DatasourcePicker from '../components/DatasourcePicker'
+import ExploreResults, { type AnalysisResult } from '../components/ExploreResults'
+import SavedAnalyses from '../components/SavedAnalyses'
+import { Bookmark, PanelLeft, Plus, Settings, Database, ArrowUpRight } from 'lucide-react'
+import '../explore.css'
+import { useAuth } from '../lib/auth'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const SUGGESTIONS = [
-  { id: 'MACRO_01', label: 'Top artists by track count',        prompt: 'Show me the top 5 artists by track count' },
-  { id: 'MACRO_02', label: 'Top customers by revenue',          prompt: 'What are the top 10 customers by total revenue?' },
-  { id: 'MACRO_03', label: 'Genres with over 100 tracks',       prompt: 'Which genres have more than 100 tracks?' },
-  { id: 'MACRO_04', label: 'Sales revenue by country (chart)',  prompt: 'Plot total sales by country as a bar chart' },
-  { id: 'MACRO_05', label: 'Led Zeppelin albums & track counts',prompt: 'Show albums by Led Zeppelin with track counts' },
-  { id: 'MACRO_06', label: 'Monthly revenue trend',             prompt: 'What is the monthly revenue trend over all years?' },
+  { id: 'MACRO_01', label: 'Top artists by track count',        prompt: 'Show me the top 5 artists by track count',
+    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3"/></svg> },
+  { id: 'MACRO_02', label: 'Top customers by revenue',          prompt: 'What are the top 10 customers by total revenue?',
+    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg> },
+  { id: 'MACRO_03', label: 'Genres with over 100 tracks',       prompt: 'Which genres have more than 100 tracks?',
+    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/></svg> },
+  { id: 'MACRO_04', label: 'Sales by country — chart',          prompt: 'Plot total sales by country as a bar chart',
+    icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg> },
+
 ]
+
+function greeting(name: string) {
+  const h = new Date().getHours()
+  const time = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening'
+  return `Good ${time}${name ? `, ${name}` : ''}`
+}
 
 export default function Chat() {
   const [messages, setMessages]               = useState<Message[]>([])
   const [input, setInput]                     = useState('')
   const [isLoading, setIsLoading]             = useState(false)
+  const [libraryOpen, setLibraryOpen] = useState(false)
   const [noApiKey, setNoApiKey]               = useState(false)
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen]         = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [selectedResultId, setSelectedResultId] = useState<string | null>(null)
+  const [mobileView, setMobileView] = useState<'conversation' | 'results'>('conversation')
   const [selectedConnectionId, setSelectedConnectionId] = useState<string | null>(null)
   const messagesEndRef   = useRef<HTMLDivElement>(null)
   const inputRef         = useRef<HTMLTextAreaElement>(null)
   const queryClient      = useQueryClient()
+  const { user }         = useAuth()
 
   // Refs to prevent stale closures in stable callbacks
   const isLoadingRef              = useRef(false)
@@ -62,16 +78,23 @@ export default function Chat() {
   const loadConversationMessages = useCallback(async (conversationId: string) => {
     try {
       const { data } = await api.get(`/conversations/${conversationId}/messages`)
-      const loaded: Message[] = data.map((m: Record<string, unknown>) => ({
+      if (activeConversationIdRef.current !== conversationId) return
+      const loaded: Message[] = data.map((m: Record<string, unknown>) => {
+        const snapshot = m.analysis_data as AnalysisSnapshot | null
+        return ({
         id: m.id as string,
         role: m.role as 'user' | 'assistant',
         content: m.content as string,
+        error: snapshot?.succeeded === false || /^(⚠️|Sorry, something went wrong)/.test(String(m.content)),
         generatedSql: m.generated_sql as string | null,
         chartBase64: m.chart_base64 as string | null,
         retryCount: m.retry_count as number | null,
-        tableData: null,
+        persistedId: m.id as string,
+        querySucceeded: snapshot?.succeeded,
+        ranAt: snapshot?.ran_at,
+        tableData: snapshot?.succeeded && snapshot.rows ? { columns: snapshot.columns, rows: snapshot.rows, totalRows: snapshot.rows.length } : null,
         reasoningSteps: [],
-      }))
+      })})
       setMessages(loaded)
     } catch (err) {
       console.error('Failed to load messages:', err)
@@ -81,6 +104,7 @@ export default function Chat() {
   // Only reload messages when the user selects a conversation from the sidebar.
   useEffect(() => {
     if (!activeConversationId) {
+      if (isLoadingRef.current) return
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setMessages([])
       return
@@ -97,7 +121,12 @@ export default function Chat() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSelectConversation = (id: string) => {
+  const handleSelectConversation = (id: string, connectionId: string | null) => {
+    if (isLoadingRef.current) return
+    setSelectedResultId(null)
+    setMobileView('conversation')
+    selectedConnectionIdRef.current = connectionId
+    setSelectedConnectionId(connectionId)
     skipNextLoadRef.current = false
     activeConversationIdRef.current = id
     setActiveConversationId(id)
@@ -105,18 +134,23 @@ export default function Chat() {
   }
 
   const handleNewConversation = () => {
+    if (isLoadingRef.current) return
+    setSelectedResultId(null)
+    setMobileView('conversation')
     activeConversationIdRef.current = null
     setActiveConversationId(null)
     setMessages([])
     inputRef.current?.focus()
   }
 
-  const sendMessage = useCallback(async (question: string) => {
-    if (!question.trim() || isLoadingRef.current) return
+  const sendMessage = useCallback(async (question: string, savedAnalysis?: SavedAnalysis) => {
+    if (!question.trim() || isLoadingRef.current || messagesRef.current.some(m => m.approvalRequest?.status === 'pending')) return
 
     isLoadingRef.current = true
     setIsLoading(true)
     setInput('')
+    setSelectedResultId(null)
+    setMobileView('conversation')
 
     const userMsg: Message = {
       id: `user-${Date.now()}`,
@@ -133,7 +167,13 @@ export default function Chat() {
       reasoningSteps: [],
     }
 
-    setMessages(prev => [...prev, userMsg, assistantPlaceholder])
+    if (savedAnalysis) {
+      activeConversationIdRef.current = null
+      setActiveConversationId(null)
+      selectedConnectionIdRef.current = savedAnalysis.connection_id
+      setSelectedConnectionId(savedAnalysis.connection_id)
+    }
+    setMessages(prev => savedAnalysis ? [userMsg, assistantPlaceholder] : [...prev, userMsg, assistantPlaceholder])
 
     let streamedContent = ''
     let streamedSql:   string | null    = null
@@ -150,7 +190,8 @@ export default function Chat() {
         credentials: 'include',
         body: JSON.stringify({
           question,
-          conversation_id: activeConversationIdRef.current,
+          conversation_id: savedAnalysis ? null : activeConversationIdRef.current,
+          saved_analysis_id: savedAnalysis?.id,
           connection_id: selectedConnectionIdRef.current ?? undefined,
         }),
       })
@@ -188,7 +229,10 @@ export default function Chat() {
         } catch { /* ignore parse error */ }
       }
 
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        throw new Error(typeof body?.detail === 'string' ? body.detail : `HTTP ${response.status}`)
+      }
 
       const reader  = response.body!.getReader()
       const decoder = new TextDecoder()
@@ -226,7 +270,10 @@ export default function Chat() {
             ))
           }
 
-          if (event.type === 'sql') { streamedSql = event.content }
+          if (event.type === 'sql') {
+            streamedSql = event.content
+            setMessages(prev => prev.map(m => m.id === assistantId ? { ...m, generatedSql: event.content } : m))
+          }
 
           if (event.type === 'chart') {
             streamedChart = event.content
@@ -243,7 +290,7 @@ export default function Chat() {
                     ...m,
                     isStreaming: false,
                     approvalRequest: {
-                      sql: event.sql,
+                      sql: event.sql, reviewToken: event.review_token,
                       conversationId: event.conversation_id || activeConversationIdRef.current || '',
                       question: event.question || question,
                       status: 'pending',
@@ -263,15 +310,20 @@ export default function Chat() {
                     chartBase64: streamedChart || event.chart_base64,
                     retryCount: event.retry_count,
                     tableData: streamedTable,
+                    persistedId: event.message_id,
+                    querySucceeded: event.query_succeeded,
+                    ranAt: event.ran_at,
+                    error: event.query_succeeded === false,
                   }
                 : m
             ))
             queryClient.invalidateQueries({ queryKey: ['conversations'] })
+            queryClient.invalidateQueries({ queryKey: ['saved-analyses'] })
           }
 
           if (event.type === 'error') {
             setMessages(prev => prev.map(m =>
-              m.id === assistantId ? { ...m, content: `⚠️ ${event.content}`, isStreaming: false } : m
+              m.id === assistantId ? { ...m, content: `⚠️ ${event.content}`, isStreaming: false, error: true } : m
             ))
           }
         } catch {
@@ -291,7 +343,7 @@ export default function Chat() {
       const errMsg = err instanceof Error ? err.message : 'Unknown error'
       setMessages(prev => prev.map(m =>
         m.id === assistantId
-          ? { ...m, content: `Sorry, something went wrong. Please try again.\n\n_Error: ${errMsg}_`, isStreaming: false }
+          ? { ...m, content: `Sorry, something went wrong. Please try again.\n\n_Error: ${errMsg}_`, isStreaming: false, error: true }
           : m
       ))
     } finally {
@@ -330,7 +382,7 @@ export default function Chat() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         credentials: 'include',
-        body: JSON.stringify({ approved, feedback: feedback || undefined }),
+        body: JSON.stringify({ approved, review_token: targetMsg?.approvalRequest?.reviewToken, feedback: feedback || undefined }),
       })
 
     try {
@@ -352,7 +404,10 @@ export default function Chat() {
         }
       }
 
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        throw new Error(typeof body?.detail === 'string' ? body.detail : `HTTP ${response.status}`)
+      }
 
       const reader  = response.body!.getReader()
       const decoder = new TextDecoder()
@@ -391,7 +446,10 @@ export default function Chat() {
                 ))
               }
 
-              if (event.type === 'sql') { streamedSql = event.content }
+              if (event.type === 'sql') {
+                streamedSql = event.content
+                setMessages(prev => prev.map(m => m.id === messageId ? { ...m, generatedSql: event.content } : m))
+              }
 
               if (event.type === 'chart') {
                 streamedChart = event.content
@@ -404,7 +462,7 @@ export default function Chat() {
                 streamedSql = event.sql
                 setMessages(prev => prev.map(m =>
                   m.id === messageId
-                    ? { ...m, isStreaming: false, approvalRequest: { sql: event.sql, conversationId: event.conversation_id, question: event.question, status: 'pending' } }
+                    ? { ...m, isStreaming: false, approvalRequest: { sql: event.sql, reviewToken: event.review_token, conversationId: event.conversation_id, question: event.question, status: 'pending' } }
                     : m
                 ))
               }
@@ -412,15 +470,16 @@ export default function Chat() {
               if (event.type === 'done') {
                 setMessages(prev => prev.map(m =>
                   m.id === messageId
-                    ? { ...m, isStreaming: false, approvalRequest: null, generatedSql: streamedSql, chartBase64: streamedChart || event.chart_base64, retryCount: event.retry_count, tableData: streamedTable }
+                    ? { ...m, isStreaming: false, approvalRequest: null, generatedSql: streamedSql, chartBase64: streamedChart || event.chart_base64, retryCount: event.retry_count, tableData: streamedTable, persistedId: event.message_id, querySucceeded: event.query_succeeded, ranAt: event.ran_at, error: event.query_succeeded === false }
                     : m
                 ))
                 queryClient.invalidateQueries({ queryKey: ['conversations'] })
+                queryClient.invalidateQueries({ queryKey: ['saved-analyses'] })
               }
 
               if (event.type === 'error') {
                 setMessages(prev => prev.map(m =>
-                  m.id === messageId ? { ...m, content: `⚠️ ${event.content}`, isStreaming: false } : m
+                  m.id === messageId ? { ...m, content: `⚠️ ${event.content}`, isStreaming: false, error: true } : m
                 ))
               }
             } catch {
@@ -433,7 +492,7 @@ export default function Chat() {
       const errMsg = err instanceof Error ? err.message : 'Unknown error'
       setMessages(prev => prev.map(m =>
         m.id === messageId
-          ? { ...m, content: `${m.content ? m.content + '\n\n' : ''}⚠️ _Error resuming review: ${errMsg}_`, isStreaming: false }
+          ? { ...m, content: `${m.content ? m.content + '\n\n' : ''}⚠️ _Error resuming review: ${errMsg}_`, isStreaming: false, error: true }
           : m
       ))
     } finally {
@@ -455,8 +514,38 @@ export default function Chat() {
     }
   }
 
+  // Active conversation title for header display
+  const { data: conversations = [] } = useQuery<{ id: string; title: string }[]>({
+    queryKey: ['conversations'],
+    queryFn: async () => { const { data } = await api.get('/conversations'); return data },
+    staleTime: 30_000,
+  })
+  const activeTitle = useMemo(
+    () => conversations.find(c => c.id === activeConversationId)?.title ?? null,
+    [conversations, activeConversationId],
+  )
+
+  const analysisResults = useMemo(() => {
+    let question = ''
+    const results: AnalysisResult[] = []
+    for (const message of messages) {
+      if (message.role === 'user') question = message.content
+      else results.push({ message, question })
+    }
+    return results
+  }, [messages])
+
+  const inspectResult = (id: string) => {
+    setSelectedResultId(id)
+    setMobileView('results')
+  }
+  const hasPendingReview = messages.some(m => m.approvalRequest?.status === 'pending')
+  const sourceName = selectedConnectionId
+    ? connections.find(c => c.id === selectedConnectionId)?.name ?? 'Connected database'
+    : 'Chinook sample'
+
   return (
-    <div className="flex h-dvh bg-surface-950 overflow-hidden">
+    <div className="explore-shell flex h-dvh overflow-hidden" style={{ background: 'var(--bg-app)' }}>
       <Sidebar
         activeConversationId={activeConversationId}
         onSelectConversation={handleSelectConversation}
@@ -465,104 +554,38 @@ export default function Chat() {
         onClose={() => setSidebarOpen(false)}
         collapsed={sidebarCollapsed}
         onToggleCollapse={() => setSidebarCollapsed(p => !p)}
+        connectionSetupDisabled={isLoading || hasPendingReview}
+        onConnectionReady={connection => {
+          if (isLoadingRef.current || hasPendingReview) return
+          selectedConnectionIdRef.current = connection.id
+          setSelectedConnectionId(connection.id)
+          handleNewConversation()
+        }}
       />
+
+      {libraryOpen && <SavedAnalyses busy={isLoading || hasPendingReview} onClose={() => setLibraryOpen(false)} onRun={analysis => { setLibraryOpen(false); void sendMessage(analysis.question, analysis) }} />}
 
       {/* Main area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top bar — solid surface, no glassmorphism */}
-        <header className="flex items-center justify-between px-4 sm:px-5 py-3
-                           border-b border-white/[0.07] bg-surface-950 flex-shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
-            {/* Mobile burger */}
-            <button
-              onClick={() => setSidebarOpen(true)}
-              className="md:hidden flex-shrink-0 w-10 h-10 flex items-center justify-center
-                         rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/[0.05]
-                         transition-colors duration-150"
-              aria-label="Open sidebar"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
 
-            {/* Desktop: show sidebar button (only when collapsed) */}
-            {sidebarCollapsed && (
-              <button
-                onClick={() => setSidebarCollapsed(false)}
-                className="hidden md:flex flex-shrink-0 w-8 h-8 items-center justify-center
-                           rounded-lg text-slate-400 hover:text-slate-200 hover:bg-white/[0.06]
-                           transition-colors duration-150"
-                aria-label="Show sidebar"
-                title="Show sidebar"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7"/>
-                </svg>
-              </button>
-            )}
-
-            <div className="flex items-center gap-2 min-w-0">
-              <div className="w-6 h-6 rounded-md bg-accent-600 hidden sm:flex items-center justify-center flex-shrink-0">
-                <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
-                  <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-                </svg>
-              </div>
-              <span className="text-slate-300 font-medium text-sm truncate max-w-[140px] sm:max-w-xs">
-                {activeConversationId ? `Chat · ${activeConversationId.slice(0, 8)}` : 'New chat'}
-              </span>
-            </div>
+        <header className="workspace-header">
+          <div className="workspace-header-title">
+            <button className="md:hidden workspace-icon-button" onClick={() => setSidebarOpen(true)} aria-label="Open sidebar"><PanelLeft size={18} /></button>
+            {sidebarCollapsed && <button className="hidden md:flex workspace-icon-button" onClick={() => setSidebarCollapsed(false)} aria-label="Show sidebar"><PanelLeft size={18} /></button>}
+            <span className="workspace-section-name">Explore</span><span className="explore-header-divider">/</span><h1>{activeTitle ?? 'New analysis'}</h1>
           </div>
-
-          {/* Right side: status + settings */}
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <AnimatePresence mode="wait">
-              {isLoading ? (
-                <motion.div
-                  key="loading"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex items-center gap-2 text-xs text-slate-400"
-                >
-                  <span className="w-1.5 h-1.5 bg-slate-500 rounded-full animate-pulse flex-shrink-0" />
-                  <span className="hidden xs:inline">Working…</span>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="idle"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex items-center gap-1.5 text-xs text-slate-500"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full"
-                        style={{ background: 'var(--status-success)' }} />
-                  <span className="hidden sm:inline">Ready</span>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* Settings link — always visible */}
-            <Link
-              to="/settings"
-              className="flex items-center justify-center w-8 h-8 rounded-lg
-                         text-slate-500 hover:text-slate-200 hover:bg-white/[0.06]
-                         transition-colors duration-150"
-              title="Settings"
-            >
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-              </svg>
-            </Link>
+          <div className="workspace-header-actions">
+            <span className={`workspace-status ${isLoading ? 'is-working' : ''}`} role="status"><i />{isLoading ? 'Working…' : hasPendingReview ? 'Needs review' : 'Ready'}</span>
+            <button className="explore-library-button" aria-label="Saved analyses" onClick={() => setLibraryOpen(true)}><Bookmark size={15} /><span>Saved analyses</span></button>
+            <button className="workspace-icon-button" onClick={handleNewConversation} title="New analysis" aria-label="New analysis"><Plus size={18} /></button>
+            <Link to="/settings" className="workspace-icon-button" aria-label="Settings"><Settings size={17} /></Link>
           </div>
         </header>
 
         {/* No-API-key banner */}
         {noApiKey && (
-          <div className="mx-4 sm:mx-5 mt-3 mb-0 flex items-start gap-3 px-4 py-3.5
-                          bg-amber-500/10 border border-amber-500/20 rounded-xl">
+          <div className="mx-4 sm:mx-5 mt-3 flex items-start gap-3 px-4 py-3.5 rounded-xl"
+               style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.18)' }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
               strokeWidth="2" className="text-amber-400 flex-shrink-0 mt-0.5">
               <path strokeLinecap="round" strokeLinejoin="round"
@@ -570,23 +593,26 @@ export default function Chat() {
             </svg>
             <div className="flex-1 min-w-0">
               <p className="text-sm text-amber-300 font-medium">Groq API key required</p>
-              <p className="text-xs text-amber-400/70 mt-0.5">
-                Add your Groq API key in Settings to start chatting.
-              </p>
+              <p className="text-xs text-amber-400/60 mt-0.5">Add your Groq API key in Settings to start chatting.</p>
             </div>
-            <Link
-              to="/settings"
+            <Link to="/settings"
               className="flex-shrink-0 text-xs font-medium text-amber-300 hover:text-amber-200
-                         border border-amber-500/30 rounded-lg px-3 py-1.5 transition-colors
-                         hover:bg-amber-500/10"
+                         border border-amber-500/25 rounded-lg px-3 py-1.5 transition-colors hover:bg-amber-500/08"
             >
-              Go to Settings →
+              Settings →
             </Link>
           </div>
         )}
 
-        {/* Messages — scrollable, full height */}
-        <main className="flex-1 overflow-y-auto overscroll-contain"
+        <div className="explore-mobile-switch" aria-label="Workspace panel">
+          <button aria-pressed={mobileView === 'conversation'} onClick={() => setMobileView('conversation')}>Conversation</button>
+          <button aria-pressed={mobileView === 'results'} onClick={() => setMobileView('results')}>Results {analysisResults.length > 0 && `(${analysisResults.length})`}</button>
+        </div>
+        <div className="explore-workspace" data-mobile-view={mobileView}>
+        <section className="explore-conversation" aria-label="Analysis conversation">
+        <div className="explore-conversation-heading"><span>Conversation</span><span>Ask · refine · explore</span></div>
+        {/* ── Messages ────────────────────────────────────────────────────────── */}
+        <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain"
               style={{ WebkitOverflowScrolling: 'touch' }}>
           <div className="max-w-3xl mx-auto px-4 sm:px-5 py-5 sm:py-6 space-y-2">
 
@@ -597,72 +623,60 @@ export default function Chat() {
               transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
               className="pt-4 sm:pt-8"
             >
-              {/* Greeting */}
-              <div className="text-center mb-8 sm:mb-10">
-                <div className="w-10 h-10 rounded-xl bg-accent-600 flex items-center justify-center mx-auto mb-4">
-                  <svg width="18" height="18" viewBox="0 0 14 14" fill="none">
-                    <path d="M2 4h10M2 7h6M2 10h8" stroke="white" strokeWidth="1.8" strokeLinecap="round"/>
-                  </svg>
-                </div>
-                <h2 className="text-lg sm:text-xl font-semibold text-white mb-2">How can I help?</h2>
-                <p className="text-sm text-slate-400 max-w-sm mx-auto leading-relaxed">
-                  Ask a question about your data in plain English.
-                </p>
+              <div className="workspace-welcome">
+                <span className="explore-eyebrow">{greeting(user?.username ?? '')}</span>
+                <h2>What would you<br /><em>like to understand?</em></h2>
+                <p>Start with a question about {sourceName}. Review the SQL, then explore the answer.</p>
               </div>
-
-              {/* Suggestion cards — neutral, no accent color */}
-              <p className="text-[11px] text-slate-500 mb-3 font-medium uppercase tracking-wider px-1">Try a question</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {SUGGESTIONS.map((s, i) => (
-                  <motion.button
-                    key={s.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.05 * i, duration: 0.25 }}
-                    onClick={() => sendMessage(s.prompt)}
-                    disabled={isLoading}
-                    className="bg-surface-900 border border-white/[0.08]
-                               hover:border-white/[0.14] hover:bg-surface-850
-                               p-4 rounded-xl text-left transition-colors duration-150
-                               flex items-center justify-between gap-3
-                               disabled:opacity-40 cursor-pointer min-h-[56px]"
-                  >
-                    <span className="text-sm text-slate-300 hover:text-white leading-snug">
-                      {s.label}
-                    </span>
-                    <span className="text-slate-600 flex-shrink-0 text-sm">→</span>
-                  </motion.button>
-                ))}
-              </div>
+              <div className="workspace-starters-heading"><span>{selectedConnectionId ? 'YOUR DATABASE' : 'A FEW PLACES TO START'}</span><Database size={14} /></div>
+              {selectedConnectionId ? <p className="workspace-connected-hint">Ask about a table, a trend, or a metric in your data. You can change the data source below.</p> : <div className="workspace-starters">
+                {SUGGESTIONS.map(s => <button key={s.id} onClick={() => sendMessage(s.prompt)} disabled={isLoading}>
+                  <span>{s.icon}</span><span>{s.label}</span><ArrowUpRight size={15} />
+                </button>)}
+              </div>}
+              <p className="workspace-start-note">Every query pauses for your review before it runs.</p>
             </motion.div>
           )}
 
           {messages.map(msg => (
-            <MessageBubble key={msg.id} message={msg} onReview={handleReview} />
+            <MessageBubble key={msg.id} message={msg} onReview={handleReview} onInspect={inspectResult} />
           ))}
           <div ref={messagesEndRef} className="h-2" />
           </div>
         </main>
 
-        {/* Input area — solid surface, iOS safe area */}
-        <footer className="px-3 sm:px-5 pt-3 border-t border-white/[0.07] flex-shrink-0 bg-surface-950"
-                style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-          {/* Datasource picker */}
+        {/* ── Input ────────────────────────────────────────────────────────────── */}
+        <footer className="workspace-composer px-3 sm:px-5 pt-3 flex-shrink-0"
+                style={{
+                  borderTop: '1px solid rgba(255,255,255,0.05)',
+                  background: 'var(--bg-app)',
+                  paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+                }}>
           <div className="max-w-3xl mx-auto mb-2.5">
             <DatasourcePicker
               connections={connections}
               selectedId={selectedConnectionId}
-              onChange={setSelectedConnectionId}
+              disabled={isLoading}
+              onChange={(connectionId) => {
+                if (isLoadingRef.current || connectionId === selectedConnectionIdRef.current) return
+                selectedConnectionIdRef.current = connectionId
+                setSelectedConnectionId(connectionId)
+                handleNewConversation()
+              }}
             />
           </div>
 
           <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
-            <div className="flex items-end gap-2 sm:gap-3 bg-surface-900 border border-white/[0.10]
-                            focus-within:border-accent-600/40 focus-within:ring-1 focus-within:ring-accent-600/15
-                            rounded-xl px-3 sm:px-4 py-2.5 transition-colors duration-150">
+            <div
+              className="workspace-input-wrap flex items-end gap-2 sm:gap-3 rounded-xl px-3 sm:px-4 py-2.5
+                          transition-all duration-200"
+              style={{ background: 'var(--bg-input)', border: '1px solid rgba(255,255,255,0.08)' }}
+              // container-level focus glow handled on textarea events below
+            >
               <textarea
                 ref={inputRef}
                 id="chat-input"
+                aria-label="Ask a question about your data"
                 value={input}
                 onChange={(e) => {
                   setInput(e.target.value)
@@ -670,41 +684,68 @@ export default function Chat() {
                   e.target.style.height = `${Math.min(e.target.scrollHeight, 200)}px`
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder={selectedConnectionId
+                onFocus={e => {
+                  const p = e.currentTarget.parentElement
+                  if (p) { p.style.borderColor = 'rgba(37,99,235,0.50)'; p.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.11), 0 0 28px rgba(37,99,235,0.06)' }
+                }}
+                onBlur={e => {
+                  const p = e.currentTarget.parentElement
+                  if (p) { p.style.borderColor = 'rgba(255,255,255,0.08)'; p.style.boxShadow = 'none' }
+                }}
+                placeholder={hasPendingReview ? 'Review the pending query to continue…' : selectedConnectionId
                   ? `Ask ${connections.find(c => c.id === selectedConnectionId)?.name ?? 'your database'} anything…`
                   : 'Ask anything about your database…'}
                 disabled={isLoading}
                 rows={1}
-                className="flex-1 bg-transparent text-slate-100 placeholder-slate-500 text-sm
-                           resize-none focus:outline-none max-h-[160px] overflow-y-auto
-                           py-1.5 leading-relaxed"
+                className="flex-1 bg-transparent text-slate-100 placeholder-slate-600 text-sm
+                           resize-none focus:outline-none max-h-[160px] overflow-y-auto py-1.5 leading-relaxed"
                 style={{ minHeight: '24px' }}
               />
               <button
                 id="send-message-btn"
                 type="submit"
-                disabled={!input.trim() || isLoading}
+                disabled={!input.trim() || isLoading || hasPendingReview}
                 className="flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center
-                           bg-accent-600 hover:bg-accent-700
-                           disabled:opacity-30 disabled:cursor-not-allowed
-                           transition-colors duration-150 active:scale-[0.95]"
+                           disabled:opacity-25 disabled:cursor-not-allowed
+                           transition-all duration-200 active:scale-[0.94]"
+                style={{
+                  background: input.trim() && !isLoading
+                    ? '#3157db'
+                    : 'rgba(255,255,255,0.05)',
+                  boxShadow: input.trim() && !isLoading ? '0 2px 12px rgba(37,99,235,0.28)' : 'none',
+                }}
                 aria-label="Send"
               >
                 {isLoading ? (
                   <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
                 ) : (
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2">
+                  <svg
+                    width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"
+
+                  >
                     <line x1="22" y1="2" x2="11" y2="13"/>
                     <polygon points="22 2 15 22 11 13 2 9 22 2"/>
                   </svg>
                 )}
               </button>
             </div>
-            <p className="text-[11px] text-slate-600 mt-2 px-1 text-center sm:text-left">
-              Read-only · Up to 200 rows · Enter to send, Shift+Enter for new line
-            </p>
+            <div className="flex items-center justify-between mt-1.5 px-1">
+              <p className="text-[11px] text-slate-700">Enter to send · Shift + Enter for a new line</p>
+              {input.length > 0 && <p className="text-[11px] text-slate-700">{input.length} chars</p>}
+            </div>
           </form>
         </footer>
+        </section>
+        <ExploreResults
+          results={analysisResults}
+          selectedId={selectedResultId}
+          source={sourceName}
+          busy={isLoading || hasPendingReview}
+          onSelect={setSelectedResultId}
+          onAsk={sendMessage}
+          onConversation={() => { setMobileView('conversation'); messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }}
+        />
+        </div>
       </div>
     </div>
   )

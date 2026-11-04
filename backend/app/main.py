@@ -28,7 +28,7 @@ from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sse_starlette.sse import EventSourceResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,12 +41,14 @@ from .memory import (
     auto_title_conversation,
     create_conversation,
     get_conversation,
+    get_conversation_context,
 )
 from .models import User
 from .routers.auth_router import router as auth_router
 from .routers.conversations_router import router as conversations_router
 from .routers.connections_router import router as connections_router
 from .routers.settings_router import router as settings_router
+from .routers.analyses_router import router as analyses_router, get_owned_analysis, verify_analysis_source
 from .schema_catalog import get_full_schema_text   # warm-up
 
 
@@ -83,34 +85,36 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"⚠ Could not warm schema catalog on startup: {e}")
 
-    # Seed the demo user
-    try:
-        from sqlalchemy.ext.asyncio import AsyncSession as _StartupSession
-        from sqlalchemy import select as _select
-        from .auth import hash_password as _hash_password
-        from .models import User as _User
-        from .db import get_appdb_engine as _get_engine
+    if settings.environment.lower() != "production":
+        # Seed the demo user
+        try:
+            from sqlalchemy.ext.asyncio import AsyncSession as _StartupSession
+            from sqlalchemy import select as _select
+            from .auth import hash_password as _hash_password
+            from .models import User as _User
+            from .db import get_appdb_engine as _get_engine
 
-        _engine = _get_engine()
-        async with _StartupSession(_engine) as _session:
-            _existing = await _session.execute(
-                _select(_User).where(_User.email == "demo@chinook.dev")
-            )
-            if _existing.scalar_one_or_none() is None:
-                _demo = _User(
-                    email="demo@chinook.dev",
-                    username="demo_operator",
-                    hashed_password=_hash_password("demo1234"),
+            _engine = _get_engine()
+            async with _StartupSession(_engine) as _session:
+                _existing = await _session.execute(
+                    _select(_User).where(_User.email == "demo@chinook.dev")
                 )
-                _session.add(_demo)
-                await _session.flush()
-                await _session.refresh(_demo)
-                await _session.commit()
-                print("✓ Demo user seeded: demo@chinook.dev / demo1234")
-            else:
-                print("✓ Demo user already exists")
-    except Exception as _e:
-        print(f"⚠ Could not seed demo user: {_e}")
+                if _existing.scalar_one_or_none() is None:
+                    _demo = _User(
+                        email="demo@chinook.dev",
+                        email_verified=True,
+                        username="demo_operator",
+                        hashed_password=_hash_password("demo1234"),
+                    )
+                    _session.add(_demo)
+                    await _session.flush()
+                    await _session.refresh(_demo)
+                    await _session.commit()
+                    print("✓ Demo user seeded: demo@chinook.dev / demo1234")
+                else:
+                    print("✓ Demo user already exists")
+        except Exception as _e:
+            print(f"⚠ Could not seed demo user: {_e}")
 
     # ── LangGraph checkpointer: connection POOL (scales to hundreds of users) ──
     # Using AsyncConnectionPool instead of from_conn_string() which opens only
@@ -119,8 +123,9 @@ async def lifespan(app: FastAPI):
         from psycopg_pool import AsyncConnectionPool
         from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
+        from .database_transport import checkpoint_database_url
         pool = AsyncConnectionPool(
-            conninfo=settings.app_db_sync_url,
+            conninfo=checkpoint_database_url(settings.app_db_sync_url, settings.environment.lower() == "production", settings.app_db_ca_cert_file or None),
             min_size=settings.checkpointer_pool_min,
             max_size=settings.checkpointer_pool_max,
             open=False,
@@ -159,6 +164,8 @@ async def lifespan(app: FastAPI):
         await pool.close()
         return
     except Exception as e:
+        if settings.environment.lower() == "production":
+            raise RuntimeError("Durable workflow storage is required in production.") from e
         print(f"⚠ Could not initialize checkpointer pool: {e}")
         app.state.checkpointer = None
         app.state.pool = None
@@ -194,16 +201,18 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
-        allow_origin_regex=r".*",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
+    from .account_recovery import router as recovery_router
     app.include_router(auth_router)
+    app.include_router(recovery_router)
     app.include_router(conversations_router)
     app.include_router(connections_router)
     app.include_router(settings_router)
+    app.include_router(analyses_router)
 
     return app
 
@@ -230,15 +239,22 @@ async def health():
 # ── Schemas ────────────────────────────────────────────────────────────────────
 
 class ChatRequest(BaseModel):
-    question: str
+    question: str = Field(max_length=8000)
+    saved_analysis_id: Optional[UUID] = None
     conversation_id: Optional[str] = None
     # None = Chinook demo; set to a UserConnection UUID for BYODB
     connection_id: Optional[str] = None
 
+    @field_validator("conversation_id", "connection_id")
+    @classmethod
+    def valid_uuid(cls, value):
+        return str(UUID(value)) if value is not None else None
+
 
 class ReviewRequest(BaseModel):
+    review_token: str = Field(min_length=1, max_length=100)
     approved: bool
-    feedback: Optional[str] = None
+    feedback: Optional[str] = Field(default=None, max_length=4000)
 
 
 # ── Shared SSE helpers ─────────────────────────────────────────────────────────
@@ -279,7 +295,7 @@ def _make_reasoning_detail(node_name: str, node_output: dict) -> str:
             detail = f"🛡️  Validation failed: {err}"
 
     elif node_name == "python_tool":
-        detail = "🐍 Python analysis complete (isolated sandbox)"
+        detail = "Python analysis is unavailable"
 
     return detail
 
@@ -306,6 +322,7 @@ async def _stream_graph_events(graph, initial_state_or_command, config: dict):
             yield "approval_required", {
                 "type": "approval_required",
                 "sql": interrupt_value.get("sql", ""),
+                "review_token": interrupt_value.get("review_token", ""),
                 "question": interrupt_value.get("question", ""),
                 "conversation_id": interrupt_value.get("conversation_id", ""),
             }, final_state
@@ -323,7 +340,7 @@ async def _stream_graph_events(graph, initial_state_or_command, config: dict):
                     yield "sql", {"type": "sql", "content": sql}, {}
 
             # ── Table data event ──────────────────────────────────────────────
-            if node_name == "execute_sql" and node_output.get("sql_results"):
+            if node_name == "execute_sql" and node_output.get("sql_results") is not None:
                 rows = node_output["sql_results"]
                 cols = node_output.get("sql_columns") or (
                     list(rows[0].keys()) if rows else []
@@ -360,6 +377,16 @@ async def chat(
     Streams node-by-node reasoning events. Pauses at human_review and emits
     an approval_required event — the stream then ends. Resume via POST /chat/review.
     """
+    saved_analysis = None
+    if body.saved_analysis_id:
+        if body.conversation_id:
+            raise HTTPException(422, "A saved analysis must run in a new conversation.")
+        saved_analysis = await get_owned_analysis(session, body.saved_analysis_id, current_user.id)
+        await verify_analysis_source(session, saved_analysis, current_user.id)
+        body = body.model_copy(update={
+            "question": saved_analysis.question,
+            "connection_id": str(saved_analysis.connection_id) if saved_analysis.connection_id else None,
+        })
     question = body.question.strip()
     if not question:
         raise HTTPException(
@@ -372,6 +399,8 @@ async def chat(
         convo = await get_conversation(session, UUID(body.conversation_id), current_user.id)
         if convo is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Conversation not found")
+        if convo.source_deleted:
+            raise HTTPException(409, "This conversation's database connection was removed. Start a new conversation with an active source.")
         conversation_id = str(convo.id)
         is_new_conversation = False
     else:
@@ -379,13 +408,6 @@ async def chat(
         await session.commit()
         conversation_id = str(convo.id)
         is_new_conversation = True
-
-    await add_message(session, UUID(conversation_id), "user", question)
-    await session.commit()
-
-    if is_new_conversation:
-        await auto_title_conversation(session, UUID(conversation_id), question)
-        await session.commit()
 
     # ── Resolve BYODB connection ──────────────────────────────────────────────
     # Bug 4 fix: if the client didn't send a connection_id (e.g. page refresh),
@@ -395,6 +417,14 @@ async def chat(
     from .models import UserConnection as _UC, Conversation as _Conv
 
     effective_connection_id: Optional[str] = body.connection_id
+
+    if not is_new_conversation and body.connection_id:
+        stored_connection_id = str(convo.connection_id) if convo.connection_id else None
+        if body.connection_id != stored_connection_id:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Start a new conversation to change data sources.",
+            )
 
     if not effective_connection_id and not is_new_conversation:
         # Try to restore from the stored conversation record
@@ -455,22 +485,34 @@ async def chat(
             detail="no_api_key",
         )
 
+    conversation_context = "" if is_new_conversation else await get_conversation_context(
+        session, UUID(conversation_id), current_user.id,
+    )
+    await add_message(session, UUID(conversation_id), "user", question)
+    if is_new_conversation:
+        await auto_title_conversation(session, UUID(conversation_id), question)
+    await session.commit()
+
     return EventSourceResponse(_chat_generator(
         graph, question, conversation_id, str(current_user.id),
         connection_id=effective_connection_id,
         datasource_name=connection_name,
-        groq_api_key=groq_api_key,
+        conversation_context=conversation_context,
+        saved_sql=saved_analysis.sql if saved_analysis else None,
+        saved_analysis_id=str(saved_analysis.id) if saved_analysis else None,
     ))
 
 
-async def _chat_generator(
+async def _chat_generator_unlocked(
     graph,
     question: str,
     conversation_id: str,
     user_id: str,
     connection_id: str | None = None,
     datasource_name: str | None = None,
-    groq_api_key: str = "",
+    conversation_context: str = "",
+    saved_sql: str | None = None,
+    saved_analysis_id: str | None = None,
 ):
     """Top-level SSE generator for the initial /chat request."""
     yield {
@@ -480,9 +522,11 @@ async def _chat_generator(
 
     initial_state = {
         "question": question,
+        "conversation_context": conversation_context,
+        "saved_sql": saved_sql,
+        "saved_analysis_id": saved_analysis_id,
         "conversation_id": conversation_id,
         "user_id": user_id,
-        "groq_api_key": groq_api_key,
         # BYODB fields — None defaults to Chinook demo
         "connection_id": connection_id,
         "datasource_name": datasource_name,
@@ -576,11 +620,11 @@ async def review_sql(
             pass  # Checkpoint fetch failure is non-fatal — proceed with resume
 
     return EventSourceResponse(
-        _review_generator(graph, conversation_id, body.approved, body.feedback)
+        _review_generator(graph, conversation_id, body.approved, body.feedback, str(current_user.id), body.review_token)
     )
 
 
-async def _review_generator(graph, conversation_id: str, approved: bool, feedback: Optional[str]):
+async def _review_generator_unlocked(graph, conversation_id: str, approved: bool, feedback: Optional[str]):
     """SSE generator for the HITL resume stream."""
     from langgraph.types import Command
 
@@ -626,10 +670,29 @@ async def _emit_answer_and_done(final_state: dict, conversation_id: str):
         await asyncio.sleep(0.008)
 
     # Persist assistant message
-    from .db import get_appdb_engine
-    from sqlalchemy.ext.asyncio import AsyncSession as _AsyncSession
-    async with _AsyncSession(get_appdb_engine()) as new_session:
-        await add_message(
+    from .db import get_appdb_session_factory
+    from datetime import datetime, timezone
+    from sqlalchemy import update
+    from .models import SavedAnalysis
+
+    succeeded = (
+        final_state.get("sql_results") is not None
+        and not final_state.get("execution_error")
+        and not final_state.get("validation_error")
+        and final_state.get("hitl_approved") is True
+    )
+    ran_at = datetime.now(timezone.utc)
+    analysis_data = json.loads(json.dumps({
+        "succeeded": succeeded,
+        "question": final_state.get("question", ""),
+        "connection_id": final_state.get("connection_id"),
+        "source_name": final_state.get("datasource_name") or "Chinook sample",
+        "columns": final_state.get("sql_columns") or [],
+        "rows": final_state.get("sql_results") if succeeded else None,
+        "ran_at": ran_at.isoformat(),
+    }, default=str))
+    async with get_appdb_session_factory()() as new_session:
+        message = await add_message(
             new_session,
             UUID(conversation_id),
             "assistant",
@@ -638,7 +701,17 @@ async def _emit_answer_and_done(final_state: dict, conversation_id: str):
             chart_base64=final_state.get("chart_base64"),
             retry_count=final_state.get("retry_count", 0),
             node_path=final_state.get("node_path", []),
+            analysis_data=analysis_data,
         )
+        message_id = str(message.id)
+        if succeeded and final_state.get("saved_analysis_id"):
+            await new_session.execute(update(SavedAnalysis).where(
+                SavedAnalysis.id == UUID(final_state["saved_analysis_id"]),
+                SavedAnalysis.user_id == UUID(final_state["user_id"]),
+            ).values(
+                snapshot={**analysis_data, "answer": answer, "chart": final_state.get("chart_base64")},
+                last_run_at=ran_at,
+            ))
         await new_session.commit()
 
     # Done event
@@ -646,6 +719,9 @@ async def _emit_answer_and_done(final_state: dict, conversation_id: str):
         "event": "message",
         "data": json.dumps({
             "type": "done",
+            "message_id": message_id,
+            "query_succeeded": succeeded,
+            "ran_at": ran_at.isoformat(),
             "conversation_id": conversation_id,
             "retry_count": final_state.get("retry_count", 0),
             "node_path": final_state.get("node_path", []),
@@ -656,3 +732,36 @@ async def _emit_answer_and_done(final_state: dict, conversation_id: str):
             "hitl_approved": final_state.get("hitl_approved"),
         }),
     }
+
+
+async def _chat_generator(graph, question, conversation_id, user_id, **kwargs):
+    from .workflow_security import workflow_guard
+    try:
+        async with workflow_guard(user_id, conversation_id):
+            async for event in _chat_generator_unlocked(graph, question, conversation_id, user_id, **kwargs):
+                yield event
+    except HTTPException as exc:
+        yield {"event": "message", "data": json.dumps({"type": "error", "content": exc.detail})}
+
+
+async def _review_generator(graph, conversation_id, approved, feedback, user_id, review_token):
+    from .workflow_security import workflow_guard, require_pending_review
+    try:
+        async with workflow_guard(user_id, conversation_id):
+            snapshot = await graph.aget_state({"configurable": {"thread_id": conversation_id}})
+            require_pending_review(snapshot.values, review_token)
+            if snapshot.values.get("user_id") != user_id or "human_review" not in snapshot.next:
+                raise HTTPException(409, "No pending review exists for this account.")
+            # Resolve permissions again: a source may have been removed while paused.
+            connection_id = snapshot.values.get("connection_id")
+            if connection_id:
+                from .db import get_appdb_session_factory
+                from .models import UserConnection
+                async with get_appdb_session_factory()() as session:
+                    source = await session.get(UserConnection, UUID(connection_id))
+                    if source is None or str(source.user_id) != user_id:
+                        raise HTTPException(409, "The database connection is no longer available.")
+            async for event in _review_generator_unlocked(graph, conversation_id, approved, feedback):
+                yield event
+    except HTTPException as exc:
+        yield {"event": "message", "data": json.dumps({"type": "error", "content": exc.detail})}

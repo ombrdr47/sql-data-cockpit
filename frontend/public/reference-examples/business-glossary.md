@@ -1,0 +1,8 @@
+# Example only — confirm these definitions with your data owner
+
+Paid invoice revenue: SUM(txn_hdr.amt) for st = 'P'.
+This metric excludes draft and void invoices; it does not subtract refunds.
+Revenue month: calendar month of dt2, in UTC.
+Active customer: customer with at least one paid invoice in the selected period.
+When someone says "revenue" without specifying gross or net, ask which definition they intend.
+Do not invent refunds or tax rules if the schema does not contain them.
