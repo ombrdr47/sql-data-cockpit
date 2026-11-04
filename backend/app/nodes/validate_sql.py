@@ -127,6 +127,12 @@ async def validate_sql_node(state: AgentState) -> AgentState:
             "node_path": node_path,
         }
 
+    from ..sql_policy import check_sql_policy
+    try:
+        check_sql_policy(sql)
+    except (ValueError, sqlglot.errors.ParseError) as exc:
+        return {**state, "sql_valid": False, "validation_error": str(exc), "node_path": node_path}
+
     # ── 4 & 5. Table + column allowlist with fuzzy hints ─────────────────────
     try:
         connection_id = state.get("connection_id")

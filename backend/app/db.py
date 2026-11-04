@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engin
 from sqlalchemy.orm import sessionmaker
 
 from .config import get_settings
+from .database_transport import async_database_options
 
 
 # ── Engine factories ──────────────────────────────────────────────────────────
@@ -25,8 +26,9 @@ def get_chinook_engine() -> AsyncEngine:
     Uses the chinook_ro role (SELECT-only, statement_timeout=5s set on role).
     """
     settings = get_settings()
+    url, options = async_database_options(settings.chinook_db_url, settings.environment.lower() == "production", settings.chinook_db_ca_cert_file or None)
     return create_async_engine(
-        settings.chinook_db_url,
+        url, connect_args=options,
         pool_size=10,        # was 5 — increased for 100+ concurrent analytical queries
         max_overflow=20,     # was 10 — burst headroom
         pool_pre_ping=True,
@@ -38,10 +40,11 @@ def get_chinook_engine() -> AsyncEngine:
 def get_appdb_engine() -> AsyncEngine:
     """Read-write engine for app_db (users, conversations, messages)."""
     settings = get_settings()
+    url, options = async_database_options(settings.app_db_url, settings.environment.lower() == "production", settings.app_db_ca_cert_file or None)
     return create_async_engine(
-        settings.app_db_url,
-        pool_size=10,
-        max_overflow=20,
+        url, connect_args=options,
+        pool_size=settings.app_db_pool_size,
+        max_overflow=settings.app_db_pool_overflow,
         pool_pre_ping=True,
         echo=False,
     )
@@ -178,15 +181,6 @@ async def get_schema_text() -> str:
 
     _SCHEMA_TEXT_CACHE = "\n".join(schema_parts)
     return _SCHEMA_TEXT_CACHE
-
-
-def get_schema_tables_and_columns() -> dict[str, list[str]]:
-    """
-    Synchronously return cached schema structure for SQL validation allowlist.
-    Must call get_schema_text() (async) first to populate the cache.
-    """
-    # Parsed from the text cache — simpler than maintaining two caches
-    raise NotImplementedError("Call get_schema_tables_columns_async instead")
 
 
 async def get_schema_tables_columns_async() -> dict[str, list[str]]:

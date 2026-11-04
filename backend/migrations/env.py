@@ -64,7 +64,8 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode (connect and apply)."""
     configuration = config.get_section(config.config_ini_section, {})
-    configuration["sqlalchemy.url"] = get_url()
+    from app.database_transport import migration_database_url
+    configuration["sqlalchemy.url"] = migration_database_url(get_url(), os.environ.get("ENVIRONMENT", "development").lower() == "production", os.environ.get("APP_DB_CA_CERT_FILE") or None)
 
     connectable = engine_from_config(
         configuration,

@@ -35,6 +35,7 @@ async def human_review_node(state: AgentState) -> AgentState:
     # in graph.astream() output, which main.py converts to an SSE event.
     payload: dict = interrupt({
         "sql": state.get("generated_sql", ""),
+        "review_token": state.get("review_token", ""),
         "conversation_id": state.get("conversation_id", ""),
         "question": state.get("question", ""),
     })

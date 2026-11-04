@@ -12,6 +12,8 @@ def route_after_validate(state: dict) -> str:
     settings = get_settings()
     if state.get("sql_valid"):
         return "execute_sql"
+    if state.get("saved_sql"):
+        return "synthesize_answer"
     # Check for CANNOT_ANSWER — no point retrying, go straight to synthesis
     err = state.get("validation_error", "")
     if err and err.upper().startswith("CANNOT_ANSWER"):
@@ -27,6 +29,8 @@ def route_after_execute(state: dict) -> str:
     from .config import get_settings
     settings = get_settings()
     if state.get("execution_error"):
+        if state.get("saved_sql"):
+            return "synthesize_answer"
         if state.get("retry_count", 0) < settings.max_retries:
             return "retry_generate"
         return "synthesize_answer"
@@ -47,6 +51,8 @@ def route_after_review(state: dict) -> str:
     """
     if state.get("hitl_approved"):
         return "execute_sql"
+    if state.get("saved_sql"):
+        return "synthesize_answer"
     # Rejected: fall back into the retry loop (same path as validation failure)
     from .config import get_settings
     settings = get_settings()

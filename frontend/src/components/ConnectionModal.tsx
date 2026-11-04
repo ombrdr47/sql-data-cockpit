@@ -1,226 +1,88 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
+import { Database, X, Eye, EyeOff, ArrowRight, CheckCircle2, AlertCircle, Loader2, RotateCcw, ShieldCheck } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { connectionsApi, type ConnectionCreate, type UserConnection } from '../lib/api'
+import { useAuth } from '../lib/auth'
+import '../connections.css'
+import { ReferenceFiles } from './ReferenceFiles'
 
 interface Props {
   onClose: () => void
   onSaved: (conn: UserConnection) => void
 }
-
-const STATUS_MESSAGES: Record<string, { label: string; color: string }> = {
-  connected:   { label: '✓ Connected successfully',          color: '#4ade80' },
-  unreachable: { label: '✗ Host unreachable or timed out',   color: '#f87171' },
-  auth_failed: { label: '✗ Authentication failed',           color: '#f87171' },
-  untested:    { label: '⚠ Connection saved (not verified)', color: '#fbbf24' },
+const failures: Record<string, string> = {
+  unreachable: 'Check the host and port, confirm the database is running, and allow connections from this app’s server in your database network settings.',
+  auth_failed: 'The database rejected these credentials. Check the username and password. You can update the saved password in Settings.',
+  untested: 'This connection has not been verified yet. Retry the connection test before using it.',
 }
-
 export default function ConnectionModal({ onClose, onSaved }: Props) {
-  const [form, setForm] = useState<ConnectionCreate>({
-    name: '',
-    host: '',
-    port: 5432,
-    database: '',
-    username: '',
-    password: '',
-  })
+  const { user } = useAuth()
+  const queryClient = useQueryClient()
+  const isDemo = user?.email === 'demo@chinook.dev'
+  const [form, setForm] = useState<ConnectionCreate>({ name: '', host: '', port: 5432, database: '', username: '', password: '' })
+  const [port, setPort] = useState('5432')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [readingReferences, setReadingReferences] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedConn, setSavedConn] = useState<UserConnection | null>(null)
-  const mountedRef = useRef(true)
-
-  // Track mounted state so async callbacks don't update state after unmount
+  const mounted = useRef(true)
+  const dialog = useRef<HTMLDialogElement>(null)
+  const pending = useRef(false)
   useEffect(() => {
-    mountedRef.current = true
-    return () => { mountedRef.current = false }
+    mounted.current = true
+    dialog.current?.showModal()
+    return () => { mounted.current = false }
   }, [])
-
-  function update(field: keyof ConnectionCreate, value: string | number) {
-    setForm((f) => ({ ...f, [field]: value }))
-    setError(null)
+  function update(field: keyof ConnectionCreate, value: string) {
+    setForm(f => ({ ...f, [field]: value })); setError(null)
   }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    try {
-      const conn = await connectionsApi.create(form)
-      if (!mountedRef.current) return
-      setSavedConn(conn)
-      if (conn.status === 'connected') {
-        // Auto-close after 1s on success, but only if still mounted
-        setTimeout(() => {
-          if (mountedRef.current) onSaved(conn)
-        }, 1000)
-      }
-    } catch (err: unknown) {
-      if (!mountedRef.current) return
-      // detail can be a string (app error) or an array (Pydantic validation errors)
-      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
-      let msg: string
-      if (Array.isArray(detail)) {
-        // Pydantic returns [{loc, msg, type}, ...]
-        msg = detail.map((d: { msg?: string }) => d?.msg ?? String(d)).join('; ')
-      } else if (typeof detail === 'string') {
-        msg = detail
-      } else {
-        msg = 'Failed to save connection'
-      }
-      setError(msg)
-    } finally {
-      if (mountedRef.current) setLoading(false)
+  async function submit(e?: FormEvent) {
+    e?.preventDefault()
+    if (pending.current || readingReferences) return
+    const payload = { ...form, name: form.name.trim(), host: form.host.trim(), database: form.database.trim(), username: form.username.trim(), port: Number(port) }
+    if (!savedConn && (!payload.name || !payload.host || !payload.database || !payload.username)) {
+      setError('Enter a connection name, host, database, and username.'); return
     }
+    if (!savedConn && (payload.host.includes('://') || payload.host.includes('/'))) {
+      setError('Enter only the hostname, such as db.example.com. Put the port, database, and credentials in their own fields.'); return
+    }
+    pending.current = true; setLoading(true); setError(null)
+    try {
+      const conn = savedConn ? await connectionsApi.test(savedConn.id) : await connectionsApi.create(payload)
+      void queryClient.invalidateQueries({ queryKey: ['connections'] })
+      if (mounted.current) setSavedConn(conn)
+    } catch (err: unknown) {
+      const detail = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+      const message = Array.isArray(detail) ? detail.map((d: { msg?: string }) => d.msg ?? 'Invalid field').join('; ') : typeof detail === 'string' ? detail : 'We couldn’t complete the request. Check your connection and try again.'
+      if (mounted.current) setError(message)
+    } finally { pending.current = false; if (mounted.current) setLoading(false) }
   }
-
-  const statusInfo = savedConn ? STATUS_MESSAGES[savedConn.status] ?? null : null
-
-  return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(0,0,0,0.6)', display: 'flex',
-        alignItems: 'center', justifyContent: 'center',
-        backdropFilter: 'blur(4px)',
-      }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div
-        style={{
-          background: 'var(--bg-secondary, #0f172a)',
-          border: '1px solid var(--border, rgba(255,255,255,0.12))',
-          borderRadius: '16px',
-          padding: '28px',
-          width: '100%',
-          maxWidth: '460px',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.6)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary, #e0e0e0)' }}>
-            🔗 Connect Your Database
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-secondary, #aaa)', fontSize: '1.4rem', lineHeight: 1,
-              padding: '2px 6px', borderRadius: '6px',
-            }}
-          >×</button>
-        </div>
-
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <Field label="Connection Name" id="conn-name">
-            <input id="conn-name" type="text" required placeholder="e.g. My Production DB"
-              value={form.name} onChange={(e) => update('name', e.target.value)}
-              style={inputStyle} />
-          </Field>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: '10px' }}>
-            <Field label="Host" id="conn-host">
-              <input id="conn-host" type="text" required placeholder="db.example.com"
-                value={form.host} onChange={(e) => update('host', e.target.value)}
-                style={inputStyle} />
-            </Field>
-            <Field label="Port" id="conn-port">
-              <input id="conn-port" type="number" required min={1} max={65535}
-                value={form.port} onChange={(e) => update('port', parseInt(e.target.value) || 5432)}
-                style={inputStyle} />
-            </Field>
-          </div>
-
-          <Field label="Database" id="conn-db">
-            <input id="conn-db" type="text" required placeholder="mydb"
-              value={form.database} onChange={(e) => update('database', e.target.value)}
-              style={inputStyle} />
-          </Field>
-
-          <Field label="Username" id="conn-user">
-            <input id="conn-user" type="text" required placeholder="readonly_user"
-              value={form.username} onChange={(e) => update('username', e.target.value)}
-              style={inputStyle} />
-          </Field>
-
-          <Field label="Password" id="conn-pass">
-            <input id="conn-pass" type="password" required
-              value={form.password} onChange={(e) => update('password', e.target.value)}
-              style={inputStyle} />
-          </Field>
-
-          {error && (
-            <div style={{ background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.3)',
-              borderRadius: '8px', padding: '10px 12px', fontSize: '0.84rem', color: '#f87171' }}>
-              {error}
-            </div>
-          )}
-
-          {statusInfo && (
-            <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px',
-              padding: '10px 12px', fontSize: '0.84rem', color: statusInfo.color,
-              border: `1px solid ${statusInfo.color}33`,
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span>{statusInfo.label}</span>
-              {savedConn?.status !== 'connected' && (
-                <button type="button" onClick={() => onSaved(savedConn!)}
-                  style={{ background: 'none', border: 'none',
-                    cursor: 'pointer', color: '#60a5fa', fontSize: '0.82rem',
-                    textDecoration: 'underline', padding: 0 }}>
-                  Use anyway
-                </button>
-              )}
-            </div>
-          )}
-
-          <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
-            <button type="button" onClick={onClose}
-              style={{ ...btnBase, flex: 1, background: 'rgba(255,255,255,0.06)', color: 'var(--text-secondary, #aaa)' }}>
-              Cancel
-            </button>
-            <button type="submit" disabled={loading}
-              style={{ ...btnBase, flex: 2, background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-                color: '#fff', opacity: loading ? 0.7 : 1 }}>
-              {loading ? 'Testing & Saving…' : 'Test & Save Connection'}
-            </button>
-          </div>
-        </form>
-
-        <p style={{ margin: '14px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary, #888)', textAlign: 'center' }}>
-          Credentials are encrypted at rest. All queries run read-only.
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function Field({ label, id, children }: { label: string; id: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <label htmlFor={id} style={{ display: 'block', marginBottom: '4px',
-        fontSize: '0.78rem', fontWeight: 500, color: 'var(--text-secondary, #aaa)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-        {label}
-      </label>
-      {children}
-    </div>
-  )
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  boxSizing: 'border-box',
-  background: 'rgba(255,255,255,0.06)',
-  border: '1px solid rgba(255,255,255,0.12)',
-  borderRadius: '8px',
-  padding: '9px 12px',
-  fontSize: '0.9rem',
-  color: 'var(--text-primary, #e0e0e0)',
-  outline: 'none',
-}
-
-const btnBase: React.CSSProperties = {
-  padding: '10px 16px',
-  borderRadius: '8px',
-  border: 'none',
-  cursor: 'pointer',
-  fontSize: '0.88rem',
-  fontWeight: 600,
-  transition: 'opacity 0.15s',
+  const connected = savedConn?.status === 'connected'
+  return <dialog ref={dialog} className="connection-dialog" aria-labelledby="connection-title" onCancel={e => { e.preventDefault(); if (!loading) onClose() }}>
+    <header><div className="connection-heading-icon"><Database size={22} /></div><div><span>DATA SOURCES / POSTGRESQL</span><h2 id="connection-title">{savedConn ? connected ? 'Your database is connected.' : 'Saved, but not connected yet.' : 'Bring your data into focus.'}</h2></div><button type="button" aria-label="Close connection setup" disabled={loading} onClick={onClose}><X size={20} /></button></header>
+    {isDemo ? <div className="connection-demo"><Database size={32} /><h3>A personal workspace for your database.</h3><p>You’re using the shared sample account. Create a personal account to connect your own PostgreSQL database. The Chinook sample is ready to explore here.</p><Link className="connection-primary" to="/signup" onClick={onClose}>Create a personal account <ArrowRight size={16} /></Link><button className="connection-secondary" onClick={onClose}>Keep exploring the sample</button></div>
+    : savedConn ? <div className="connection-outcome">
+      <div className={connected ? 'connection-feedback success' : 'connection-feedback'} role="status">{connected ? <CheckCircle2 size={23} /> : <AlertCircle size={23} />}<div><h3>{connected ? 'Connection test passed' : 'Connection test needs attention'}</h3><p>{connected ? 'Open a new analysis with this data source selected. You’ll review each generated query before it runs.' : failures[savedConn.status] ?? 'The test did not succeed. Review the saved connection in Settings, then try again.'}</p></div></div>
+      <dl><div><dt>Connection</dt><dd>{savedConn.name}</dd></div><div><dt>Host</dt><dd>{savedConn.host_masked}:{savedConn.port}</dd></div><div><dt>Database</dt><dd>{savedConn.database_masked}</dd></div></dl>
+      {!connected && <p className="connection-help">This connection is already saved. Retrying tests the same connection. Manage its credentials or remove it in Settings.</p>}
+      {error && <p className="connection-error" role="alert">{error}</p>}
+      <footer>{connected ? <><button className="connection-secondary" onClick={onClose}>Done</button><button className="connection-primary" onClick={() => onSaved(savedConn)}>Open analysis <ArrowRight size={16} /></button></> : <><Link className="connection-secondary" to="/settings" onClick={onClose}>Manage in Settings</Link><button className="connection-primary" disabled={loading} onClick={() => void submit()}>{loading ? <Loader2 size={16} className="animate-spin" /> : <RotateCcw size={16} />}{loading ? 'Testing connection…' : 'Retry connection test'}</button></>}</footer>
+    </div> : <form onSubmit={submit} className="connection-form">
+      <p className="connection-intro">Connect a public PostgreSQL database with verified TLS and a dedicated read-only user. Grant it access only to tables this workspace should query.</p>
+      <p className="connection-intro">We discover schema without sampling rows. Your questions, schema, reference files, and approved query results are sent to the model provider. Query results and conversation context are stored in your workspace.</p>
+      <fieldset disabled={loading}><legend>01 / CONNECTION DETAILS</legend>
+        <label htmlFor="conn-name">Connection name<input id="conn-name" autoFocus required maxLength={100} value={form.name} onChange={e => update('name', e.target.value)} placeholder="e.g. Sales analytics" /><small>A recognizable name for your workspace.</small></label>
+        <div className="connection-host-row"><label htmlFor="conn-host">Host<input id="conn-host" required autoCapitalize="none" spellCheck={false} value={form.host} onChange={e => update('host', e.target.value)} placeholder="db.example.com" aria-describedby="conn-host-help" /></label><label htmlFor="conn-port">Port<input id="conn-port" required type="number" min={1} max={65535} value={port} onChange={e => setPort(e.target.value)} /></label></div>
+        <p id="conn-host-help" className="connection-help">Use the hostname only. Localhost and private network addresses are not supported by this app.</p>
+        <label htmlFor="conn-db">Database name<input id="conn-db" required autoCapitalize="none" spellCheck={false} value={form.database} onChange={e => update('database', e.target.value)} placeholder="analytics" /></label>
+      </fieldset>
+      <fieldset disabled={loading}><legend>02 / DATABASE CREDENTIALS</legend><div className="connection-credentials"><label htmlFor="conn-user">Username<input id="conn-user" required autoComplete="off" autoCapitalize="none" spellCheck={false} value={form.username} onChange={e => update('username', e.target.value)} placeholder="readonly_user" /></label><label htmlFor="conn-pass">Password<span className="connection-password"><input id="conn-pass" required type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={form.password} onChange={e => update('password', e.target.value)} /><button type="button" onClick={() => setShowPassword(v => !v)} aria-label={showPassword ? 'Hide database password' : 'Show database password'} aria-pressed={showPassword}>{showPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button></span></label></div></fieldset>
+      <ReferenceFiles files={form.references?.files ?? []} onChange={files => setForm(f => ({ ...f, references: { files } }))} disabled={loading} onReading={setReadingReferences} />
+      <div className="connection-privacy"><ShieldCheck size={17} /><p>Credentials are encrypted at rest. Schema, conversation context, and query results may be sent to Groq when you analyze your data.</p></div>
+      {error && <p className="connection-error" role="alert">{error}</p>}
+      <footer><span role="status">{loading ? 'Checking access and saving your connection…' : 'Connection details are saved even if the test fails.'}</span><div><button type="button" className="connection-secondary" disabled={loading} onClick={onClose}>Cancel</button><button className="connection-primary" disabled={loading || readingReferences}>{loading ? <Loader2 size={16} className="animate-spin" /> : <Database size={16} />}{loading ? 'Testing & saving…' : 'Test & save connection'}</button></div></footer>
+    </form>}
+  </dialog>
 }

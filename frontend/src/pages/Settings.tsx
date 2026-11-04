@@ -92,7 +92,7 @@ export default function Settings() {
         current_password: currentPassword,
         new_password: newPassword,
       })
-      setPwdMessage({ type: 'success', text: 'Password updated successfully.' })
+      await logout()
       setCurrentPassword('')
       setNewPassword('')
       setConfirmNewPassword('')

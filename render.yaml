@@ -1,23 +1,54 @@
+# Reference for the EXISTING Render API. Frontend is already hosted on Vercel.
+# Do not sync into the live service until its deployment settings and secrets
+# have been reviewed. This file does not provision Supabase projects.
 services:
   - type: web
     name: sql-data-cockpit-backend
-    env: docker
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    autoDeployTrigger: commit
     dockerfilePath: ./Dockerfile.backend
+    dockerContext: .
     healthCheckPath: /health
     envVars:
-      - key: GROQ_API_KEY
-        sync: false
-      - key: JWT_SECRET_KEY
-        generateValue: true
-      - key: ALLOWED_ORIGINS
-        value: "https://sql-data-cockpit.vercel.app"
       - key: ENVIRONMENT
         value: production
-      - key: SECURE_COOKIES
-        value: true
-      - key: CHINOOK_DB_URL
+      - key: JWT_SECRET_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
         sync: false
       - key: APP_DB_URL
         sync: false
       - key: APP_DB_SYNC_URL
         sync: false
+      - key: CHINOOK_DB_URL
+        sync: false
+      - key: FRONTEND_URL
+        value: https://sql-data-cockpit.vercel.app
+      - key: ALLOWED_ORIGINS
+        value: https://sql-data-cockpit.vercel.app
+      - key: SECURE_COOKIES
+        value: "true"
+      - key: EMAIL_VERIFICATION_REQUIRED
+        value: "false"
+      - key: MAIL_TRANSPORT
+        value: disabled
+      - key: APP_DB_POOL_SIZE
+        value: "2"
+      - key: APP_DB_POOL_OVERFLOW
+        value: "3"
+      - key: LOCK_DB_POOL_SIZE
+        value: "1"
+      - key: LOCK_DB_POOL_OVERFLOW
+        value: "4"
+      - key: CHECKPOINTER_POOL_MIN
+        value: "1"
+      - key: CHECKPOINTER_POOL_MAX
+        value: "3"
+      # Optional Secret File paths when the chosen Supabase endpoint needs its CA.
+      # APP_DB_CA_CERT_FILE=/etc/secrets/app-db-ca.crt
+      # CHINOOK_DB_CA_CERT_FILE=/etc/secrets/chinook-db-ca.crt

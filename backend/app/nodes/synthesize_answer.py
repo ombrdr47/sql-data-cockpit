@@ -13,7 +13,7 @@ import json
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from . import AgentState
-from ..llm import get_llm
+from ..llm import get_llm, resolve_api_key
 
 SYSTEM_PROMPT = """You are a friendly, precise data analyst assistant.
 Given a user question and query results, write a clear, concise natural-language answer.
@@ -63,7 +63,16 @@ async def synthesize_answer_node(state: AgentState) -> AgentState:
     node_path = list(state.get("node_path", []))
     node_path.append("synthesize_answer")
 
-    llm = get_llm(state["groq_api_key"])
+    if state.get("saved_sql") and (state.get("validation_error") or state.get("execution_error")):
+        reason = state.get("execution_error") or state.get("validation_error")
+        answer = (
+            "Run cancelled. The saved SQL was not changed."
+            if state.get("hitl_approved") is False
+            else f"The saved analysis could not run. Its SQL was not changed.\n\n{reason}"
+        )
+        return {**state, "final_answer": answer, "node_path": node_path}
+
+    llm = get_llm(await resolve_api_key(state["user_id"]))
     question = state.get("question", "")
 
     # ── CANNOT_ANSWER path ────────────────────────────────────────────────────

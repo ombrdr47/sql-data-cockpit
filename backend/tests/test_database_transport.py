@@ -1,0 +1,64 @@
+import ssl
+import pytest
+from psycopg.conninfo import conninfo_to_dict
+from backend.app.database_transport import async_database_options, checkpoint_database_url
+
+
+def test_production_async_url_preserves_credentials_and_verifies_tls():
+    url, options = async_database_options('postgresql://user:p%40ss@db.example/db?sslmode=disable&channel_binding=require', True)
+    assert url.drivername == 'postgresql+asyncpg'
+    assert url.password == 'p@ss'
+    assert 'sslmode' not in url.query
+    assert 'channel_binding' not in url.query
+    assert options['ssl'].verify_mode == ssl.CERT_REQUIRED
+    assert options['ssl'].check_hostname
+
+
+def test_checkpoint_tls_cannot_be_downgraded_by_input_url():
+    result = checkpoint_database_url('postgresql://user:p%40ss@db.example/db?sslmode=disable', True)
+    options = conninfo_to_dict(result)
+    assert options['password'] == 'p@ss'
+    assert options['sslmode'] == 'verify-full'
+    assert options['sslrootcert']
+
+
+def test_development_transport_is_unchanged():
+    url = 'postgresql+asyncpg://user:pass@localhost/db'
+    assert async_database_options(url, False) == (url, {})
+    assert checkpoint_database_url(url, False) == url
+
+
+def test_non_postgres_url_rejected_in_production():
+    with pytest.raises(ValueError):
+        async_database_options('sqlite:///file.db', True)
+
+
+def test_migrations_verify_tls_with_url_encoded_password():
+    from sqlalchemy.engine import make_url
+    from backend.app.database_transport import migration_database_url
+    result = make_url(migration_database_url('postgresql://u:p%40ss@db.example/db?sslmode=disable', True))
+    assert result.password == 'p@ss'
+    assert result.query['sslmode'] == 'verify-full'
+    assert result.query['sslrootcert']
+
+
+def test_operator_ca_bundle_is_used_for_async_connections():
+    from unittest.mock import patch
+    with patch('backend.app.database_transport.ssl.create_default_context') as context:
+        async_database_options('postgresql://u:p@db.example/db', True, '/etc/secrets/app-db-ca.crt')
+    context.assert_called_once_with(cafile='/etc/secrets/app-db-ca.crt')
+
+
+def test_provider_ca_from_url_is_preserved_for_checkpoint_and_migration():
+    from backend.app.database_transport import migration_database_url
+    from sqlalchemy.engine import make_url
+    url = 'postgresql://u:p@db.example/db?sslmode=disable&sslrootcert=/etc/secrets/provider.crt'
+    assert conninfo_to_dict(checkpoint_database_url(url, True))['sslrootcert'] == '/etc/secrets/provider.crt'
+    result = make_url(migration_database_url(url, True))
+    assert result.query['sslrootcert'] == '/etc/secrets/provider.crt'
+    assert result.query['sslmode'] == 'verify-full'
+
+
+def test_missing_operator_ca_fails_closed():
+    with pytest.raises(OSError):
+        async_database_options('postgresql://u:p@db.example/db', True, '/nonexistent/provider-ca.crt')

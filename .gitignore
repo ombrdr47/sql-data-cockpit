@@ -62,3 +62,10 @@ langsmith.json
 # DB dumps (large binaries — use Docker volumes)
 *.dump
 *.backup
+
+# Local email previews contain account action links
+backend/.local/
+
+# Operator OAuth downloads and generated Gmail credentials
+client_secret*.json
+gmail-render-secrets*.json

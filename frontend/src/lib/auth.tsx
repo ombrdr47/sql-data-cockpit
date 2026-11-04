@@ -6,6 +6,7 @@
  * preventing the interceptor-triggered infinite reload loop.
  */
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import api, { setAccessToken, setUnauthenticatedCallback, attemptTokenRefresh } from './api'
 
@@ -24,7 +25,7 @@ interface AuthState {
 
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>
-  signup: (email: string, username: string, password: string) => Promise<void>
+  signup: (email: string, username: string, password: string) => Promise<boolean>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -32,6 +33,7 @@ interface AuthContextValue extends AuthState {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient()
   const [state, setState] = useState<AuthState>({
     user: null,
     isLoading: true,
@@ -43,10 +45,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // doing a hard window.location redirect (which caused the infinite reload loop).
   useEffect(() => {
     setUnauthenticatedCallback(() => {
+      queryClient.clear()
       setAccessToken(null)
       setState({ user: null, isLoading: false, isAuthenticated: false })
     })
-  }, [])
+  }, [queryClient])
 
   // On mount: try to restore session via silent refresh.
   // Uses attemptTokenRefresh() which bypasses the interceptor, so a 401 here
@@ -72,6 +75,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           })
         } catch {
           // Token was valid but /auth/me failed — treat as unauthenticated
+          queryClient.clear()
           setAccessToken(null)
           setState({ user: null, isLoading: false, isAuthenticated: false })
         }
@@ -82,36 +86,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     init()
-  }, [])
+  }, [queryClient])
 
   const login = useCallback(async (email: string, password: string) => {
     const { data } = await api.post('/auth/login', { email, password })
+    queryClient.clear()
     setAccessToken(data.access_token)
     setState({
       user: { user_id: data.user_id, username: data.username, email: data.email, role: 'user' },
       isLoading: false,
       isAuthenticated: true,
     })
-  }, [])
+  }, [queryClient])
 
   const signup = useCallback(async (email: string, username: string, password: string) => {
     const { data } = await api.post('/auth/signup', { email, username, password })
+    if (!data.access_token) return false
+    queryClient.clear()
     setAccessToken(data.access_token)
     setState({
       user: { user_id: data.user_id, username: data.username, email: data.email, role: 'user' },
       isLoading: false,
       isAuthenticated: true,
     })
-  }, [])
+    return true
+  }, [queryClient])
 
   const logout = useCallback(async () => {
     try {
       await api.post('/auth/logout')
     } finally {
+      queryClient.clear()
       setAccessToken(null)
       setState({ user: null, isLoading: false, isAuthenticated: false })
     }
-  }, [])
+  }, [queryClient])
 
   const refreshUser = useCallback(async () => {
     const { data } = await api.get('/auth/me')
@@ -119,7 +128,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       ...prev,
       user: { user_id: data.user_id, username: data.username, email: data.email, role: data.role },
     }))
-  }, [])
+  }, [queryClient])
 
   return (
     <AuthContext.Provider value={{ ...state, login, signup, logout, refreshUser }}>

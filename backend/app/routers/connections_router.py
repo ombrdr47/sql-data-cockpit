@@ -14,17 +14,14 @@ Security:
   - Private/loopback IPs are blocked before any connection attempt (FR-8)
   - Connection cap enforced (max_connections_per_user from config)
 """
-import asyncio
-import ipaddress
 import re
-import socket
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
@@ -32,7 +29,8 @@ from ..config import get_settings
 from ..crypto import decrypt_field, encrypt_field, get_fernet
 from ..db import get_appdb_session
 from ..engine_pool import engine_pool
-from ..models import User, UserConnection
+from ..models import User, UserConnection, Conversation
+from ..connection_references import ReferenceBundle
 
 router = APIRouter(prefix="/connections", tags=["connections"])
 
@@ -66,6 +64,7 @@ def _require_non_demo(current_user: User = Depends(get_current_user)) -> User:
 # ── Pydantic schemas ──────────────────────────────────────────────────────────
 
 class ConnectionCreate(BaseModel):
+    references: ReferenceBundle = Field(default_factory=ReferenceBundle)
     name: str = Field(..., min_length=1, max_length=100)
     host: str = Field(..., min_length=1)
     port: int = Field(default=5432, ge=1, le=65535)
@@ -98,56 +97,7 @@ class ConnectionResponse(BaseModel):
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-_PRIVATE_RANGES = [
-    ipaddress.ip_network("10.0.0.0/8"),
-    ipaddress.ip_network("172.16.0.0/12"),
-    ipaddress.ip_network("192.168.0.0/16"),
-    ipaddress.ip_network("127.0.0.0/8"),
-    ipaddress.ip_network("::1/128"),
-    ipaddress.ip_network("fc00::/7"),
-]
-
-_BLOCKED_HOSTNAMES = {
-    "localhost", "host.docker.internal", "gateway.docker.internal",
-}
-
-
-async def _assert_not_internal(host: str) -> None:
-    """FR-8: Block connections to internal/private infrastructure.
-
-    The DNS resolution is done via run_in_executor so it doesn't block
-    the asyncio event loop (socket.gethostbyname is a blocking syscall).
-    """
-    if host.lower() in _BLOCKED_HOSTNAMES:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Connections to internal/loopback hosts are not allowed.",
-        )
-    try:
-        ip = ipaddress.ip_address(host)
-        for net in _PRIVATE_RANGES:
-            if ip in net:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail="Connections to private IP ranges are not allowed.",
-                )
-    except ValueError:
-        # host is a DNS name — resolve asynchronously (non-blocking)
-        try:
-            loop = asyncio.get_event_loop()
-            resolved = await loop.run_in_executor(
-                None, socket.gethostbyname, host
-            )
-            ip = ipaddress.ip_address(resolved)
-            for net in _PRIVATE_RANGES:
-                if ip in net:
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                        detail="The hostname resolves to a private IP range and is not allowed.",
-                    )
-        except socket.gaierror:
-            # Can't resolve — treat as unreachable (will fail on connect test)
-            pass
+from ..connection_security import assert_not_internal as _assert_not_internal
 
 
 def _mask(value: str) -> str:
@@ -229,6 +179,7 @@ async def create_connection(
         port=body.port,
         database_enc=encrypt_field(body.database, fernet),
         username_enc=encrypt_field(body.username, fernet),
+        references_enc=encrypt_field(body.references.model_dump_json(), fernet) if body.references.files else None,
         password_enc=encrypt_field(body.password, fernet),
         status=conn_status,
         last_tested_at=datetime.now(timezone.utc),
@@ -284,6 +235,10 @@ async def delete_connection(
     # Dispose the cached engine immediately (FR-11)
     await engine_pool.remove(connection_id)
 
+    await session.execute(update(Conversation).where(
+        Conversation.connection_id == connection_id,
+        Conversation.user_id == current_user.id,
+    ).values(source_deleted=True))
     await session.delete(conn)
     await session.commit()
 
@@ -346,7 +301,7 @@ class ConnectionUpdate(BaseModel):
 async def update_connection(
     connection_id: uuid.UUID,
     body: ConnectionUpdate,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_require_non_demo),
     session: AsyncSession = Depends(get_appdb_session),
 ):
     """Update a connection's name or rotate its password.
@@ -392,3 +347,23 @@ async def update_connection(
     await session.commit()
     await session.refresh(conn)
     return _to_response(conn, fernet)
+
+
+@router.get('/{connection_id}/references', response_model=ReferenceBundle)
+async def get_references(connection_id: uuid.UUID, current_user: User = Depends(_require_non_demo), session: AsyncSession = Depends(get_appdb_session)):
+    connection = await session.scalar(select(UserConnection).where(UserConnection.id == connection_id, UserConnection.user_id == current_user.id))
+    if connection is None:
+        raise HTTPException(404, 'Connection not found')
+    if not connection.references_enc:
+        return ReferenceBundle()
+    return ReferenceBundle.model_validate_json(decrypt_field(connection.references_enc, get_fernet(get_settings().jwt_secret_key)))
+
+
+@router.put('/{connection_id}/references', response_model=ReferenceBundle)
+async def save_references(connection_id: uuid.UUID, body: ReferenceBundle, current_user: User = Depends(_require_non_demo), session: AsyncSession = Depends(get_appdb_session)):
+    connection = await session.scalar(select(UserConnection).where(UserConnection.id == connection_id, UserConnection.user_id == current_user.id))
+    if connection is None:
+        raise HTTPException(404, 'Connection not found')
+    connection.references_enc = encrypt_field(body.model_dump_json(), get_fernet(get_settings().jwt_secret_key)) if body.files else None
+    await session.commit()
+    return body

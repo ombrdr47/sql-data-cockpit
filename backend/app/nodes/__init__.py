@@ -13,9 +13,11 @@ class AgentState(TypedDict, total=False):
     """
     # ── Input ─────────────────────────────────────────────────────────────────
     question: str                    # The user's natural-language question
+    conversation_context: str        # Bounded prior messages and SQL, never raw result rows
+    saved_sql: Optional[str]         # Immutable SQL for a saved-analysis run
+    saved_analysis_id: Optional[str]
     conversation_id: str             # UUID of the active conversation
     user_id: str                     # UUID of the authenticated user
-    groq_api_key: str                # Decrypted Groq API key for this request
 
     # ── Datasource ────────────────────────────────────────────────────────────
     # None = Chinook demo; UUID str = user's saved connection
@@ -39,6 +41,7 @@ class AgentState(TypedDict, total=False):
     needs_python_tool: bool          # Did the router decide we need pandas?
 
     # ── Human-in-the-Loop review ─────────────────────────────────────────────
+    review_token: str               # Single-use ID bound to the displayed SQL
     hitl_approved: Optional[bool]    # True=approved, False=rejected, None=not yet reviewed
     hitl_feedback: Optional[str]     # User's rejection reason (fed back into generate_sql)
 

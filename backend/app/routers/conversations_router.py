@@ -33,6 +33,7 @@ router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 class ConversationResponse(BaseModel):
     id: str
+    connection_id: Optional[str] = None
     title: str
     created_at: str
     updated_at: str
@@ -46,6 +47,7 @@ class MessageResponse(BaseModel):
     role: str
     content: str
     generated_sql: Optional[str]
+    analysis_data: Optional[dict] = None
     chart_base64: Optional[str]
     retry_count: Optional[int]
     node_path: Optional[list[str]]
@@ -74,6 +76,7 @@ async def list_convos(
     return [
         ConversationResponse(
             id=str(c.id),
+            connection_id=str(c.connection_id) if c.connection_id else None,
             title=c.title,
             created_at=c.created_at.isoformat(),
             updated_at=c.updated_at.isoformat(),
@@ -92,6 +95,7 @@ async def create_convo(
     await session.commit()
     return ConversationResponse(
         id=str(convo.id),
+        connection_id=str(convo.connection_id) if convo.connection_id else None,
         title=convo.title,
         created_at=convo.created_at.isoformat(),
         updated_at=convo.updated_at.isoformat(),
@@ -114,6 +118,7 @@ async def get_convo_messages(
             role=m.role,
             content=m.content,
             generated_sql=m.generated_sql,
+            analysis_data=m.analysis_data,
             chart_base64=m.chart_base64,
             retry_count=m.retry_count,
             node_path=m.node_path,
@@ -136,6 +141,7 @@ async def rename_convo(
     await session.commit()
     return ConversationResponse(
         id=str(convo.id),
+        connection_id=str(convo.connection_id) if convo.connection_id else None,
         title=convo.title,
         created_at=convo.created_at.isoformat(),
         updated_at=convo.updated_at.isoformat(),

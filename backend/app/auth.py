@@ -9,8 +9,8 @@ Design decisions (worth noting in interviews):
     → httpOnly prevents XSS token theft (localStorage is not safe for tokens)
   - Refresh tokens are hashed in the DB (never stored raw) + rotated on use
   - Passwords: bcrypt via passlib (salted, work factor 12)
-  - No JWT revocation list for access tokens — they expire quickly enough.
-    Revocation is handled via the refresh_tokens table (revoked=TRUE).
+  - Password changes/resets increment the user session version, rejecting old JWTs.
+    Logout revokes its refresh token; access JWTs otherwise expire normally.
 """
 import hashlib
 import secrets
@@ -39,6 +39,8 @@ def hash_password(plain: str) -> str:
 
 
 def verify_password(plain: str, hashed: str) -> bool:
+    if len(plain.encode('utf-8')) > 72:
+        return False
     return pwd_context.verify(plain, hashed)
 
 
@@ -48,7 +50,7 @@ def _settings():
     return get_settings()
 
 
-def create_access_token(user_id: str, email: str) -> str:
+def create_access_token(user_id: str, email: str, session_version: int = 0) -> str:
     settings = _settings()
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.access_token_expire_minutes
@@ -58,6 +60,7 @@ def create_access_token(user_id: str, email: str) -> str:
         "email": email,
         "exp": expire,
         "type": "access",
+        "ver": session_version,
     }
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
@@ -84,10 +87,10 @@ def decode_access_token(token: str) -> dict:
                 detail="Invalid token type",
             )
         return payload
-    except JWTError as e:
+    except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Could not validate credentials: {e}",
+            detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
@@ -121,13 +124,23 @@ async def get_current_user(
             detail="Invalid token payload",
         )
 
-    result = await session.execute(select(User).where(User.id == UUID(user_id)))
+    try:
+        parsed_id = UUID(user_id)
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+    result = await session.execute(select(User).where(User.id == parsed_id))
     user = result.scalar_one_or_none()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
+    if user.email == "demo@chinook.dev" and get_settings().environment.lower() == "production":
+        raise HTTPException(status_code=403, detail="Shared demo access is disabled in production.")
+    if get_settings().email_verification_required and not user.email_verified:
+        raise HTTPException(status_code=403, detail="Verify your email before continuing.")
+    if payload.get("ver", 0) != user.session_version:
+        raise HTTPException(status_code=401, detail="Session expired. Sign in again.")
     return user
 
 
@@ -160,6 +173,7 @@ async def rotate_refresh_token(
         .where(RefreshToken.token_hash == token_hash)
         .where(RefreshToken.revoked == False)  # noqa: E712
         .where(RefreshToken.expires_at > datetime.now(timezone.utc))
+        .with_for_update()
     )
     rt = result.scalar_one_or_none()
     if rt is None:
@@ -178,6 +192,11 @@ async def rotate_refresh_token(
     # Load user
     user_result = await session.execute(select(User).where(User.id == rt.user_id))
     user = user_result.scalar_one()
+
+    if user.email == "demo@chinook.dev" and get_settings().environment.lower() == "production":
+        raise HTTPException(status_code=403, detail="Shared demo access is disabled in production.")
+    if get_settings().email_verification_required and not user.email_verified:
+        raise HTTPException(status_code=401, detail="Email verification required")
 
     # Issue new token
     new_token = create_refresh_token()

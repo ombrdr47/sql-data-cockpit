@@ -1,26 +1,7 @@
-"""
-app/engine_pool.py
-Per-connection SQLAlchemy async engine pool for BYODB.
+"""Per-source engine cache with verified TLS, pinned public addresses and bounded sessions.
 
-Responsibilities:
-  - Cache one AsyncEngine per user_connection.id (TTL-based eviction)
-  - Enforce read-only at the PostgreSQL session level via connect_args:
-      default_transaction_read_only = ON
-  - Dispose engines immediately when a connection is deleted
-  - Small bounded pool per engine (pool_size=2, max_overflow=3) so a
-    slow user DB cannot exhaust Chinook's connection pool (NFR-4)
-
-Bug fixes vs. original:
-  - get_engine() is now fully self-contained: it opens its own DB session
-    internally on cache miss. Callers no longer pass an AsyncSession,
-    eliminating the TOCTOU risk of a closed session.
-  - DNS resolution moved to connections_router and is now done via
-    asyncio.get_event_loop().run_in_executor() (non-blocking).
-
-Usage:
-    engine = await engine_pool.get_engine(connection_id)
-    async with engine.connect() as conn:
-        result = await conn.execute(text("SELECT 1"))
+Database grants remain the permission boundary. Read-only sessions, SQL policy,
+and statement timeouts provide additional safeguards.
 """
 import asyncio
 import time
@@ -71,6 +52,8 @@ class _EnginePool:
         async with self._lock:
             if connection_id in self._engines:
                 engine, _ = self._engines.pop(connection_id)
+                from .schema_catalog import dynamic_catalog
+                dynamic_catalog.invalidate(engine)
                 await engine.dispose()
 
     async def evict_expired(self) -> None:
@@ -87,6 +70,8 @@ class _EnginePool:
             ]
             for cid in expired:
                 engine, _ = self._engines.pop(cid)
+                from .schema_catalog import dynamic_catalog
+                dynamic_catalog.invalidate(engine)
                 await engine.dispose()
 
     # ── Engine builder ────────────────────────────────────────────────────────
@@ -120,26 +105,7 @@ class _EnginePool:
             port     = row.port
         # Session is cleanly closed here — credentials are now in local variables
 
-        url = (
-            f"postgresql+asyncpg://{username}:{password}"
-            f"@{host}:{port}/{database}"
-        )
-
-        engine = create_async_engine(
-            url,
-            pool_size=2,
-            max_overflow=3,
-            pool_pre_ping=True,
-            echo=False,
-            connect_args={
-                # ssl=True enables SSL/TLS — required by Neon, Supabase, RDS, etc.
-                # asyncpg uses True/False, not the psycopg2 'require' string.
-                "ssl": True,
-                "server_settings": {
-                    "default_transaction_read_only": "on",
-                },
-            },
-        )
+        engine = _secure_engine(host, port, database, username, password, pool_size=2, max_overflow=3)
 
         return engine
 
@@ -154,64 +120,40 @@ class _EnginePool:
         password: str,
         timeout: float = 15.0,   # 15s — Neon/Supabase free-tier cold-starts need up to 10s
     ) -> tuple[bool, str]:
-        """Open a throwaway connection and run SELECT 1.
+        """Use exactly the same verified TLS and public-address policy as queries."""
+        engine = _secure_engine(host, port, database, username, password, pool_size=1, max_overflow=0)
+        try:
+            async with asyncio.timeout(timeout + 2):
+                async with engine.connect() as conn:
+                    await conn.execute(text("SELECT 1"))
+            return True, ""
+        except Exception:
+            return False, "connection_failed"
+        finally:
+            await engine.dispose()
 
-        Returns (success, error_message). On success error_message is ''.
-        Tries SSL first (cloud providers), falls back to no-SSL (on-prem).
-        """
-        import logging
-        logger = logging.getLogger(__name__)
 
-        url = (
-            f"postgresql+asyncpg://{username}:{password}"
-            f"@{host}:{port}/{database}"
+def _secure_engine(host, port, database, username, password, **pool_options):
+    from sqlalchemy import URL
+    from psycopg import AsyncConnection
+    import certifi
+    from .connection_security import resolve_public_addresses
+
+    async def connect():
+        # hostaddr prevents a second DNS resolution; host still verifies the TLS name.
+        addresses = await resolve_public_addresses(host, port)
+        return await AsyncConnection.connect(
+            host=host, hostaddr=addresses[0], port=port, dbname=database,
+            user=username, password=password, sslmode="verify-full",
+            sslrootcert=certifi.where(), connect_timeout=15,
+            options="-c default_transaction_read_only=on -c search_path=pg_catalog,public -c statement_timeout=5000 -c idle_in_transaction_session_timeout=10000",
         )
 
-        async def _try(ssl_enabled: bool) -> tuple[bool, str]:
-            engine = create_async_engine(
-                url,
-                pool_size=1,
-                max_overflow=0,
-                pool_pre_ping=False,
-                echo=False,
-                connect_args={"ssl": ssl_enabled, "timeout": timeout},
-            )
-            try:
-                async with asyncio.timeout(timeout + 2):
-                    async with engine.connect() as conn:
-                        await conn.execute(text("SELECT 1"))
-                return True, ""
-            finally:
-                await engine.dispose()
-
-        # ── First attempt: SSL enabled (required for cloud providers) ─────────
-        try:
-            return await _try(ssl_enabled=True)
-        except asyncio.TimeoutError:
-            logger.warning("test_connection timeout ssl=True host=%s", host)
-            return False, "unreachable"
-        except Exception as exc:
-            logger.warning("test_connection ssl=True failed [%s]: %s", type(exc).__name__, exc)
-            msg = str(exc).lower()
-            if any(k in msg for k in ("password", "authentication", "auth")):
-                return False, "auth_failed"
-            # If NOT an SSL/TLS error, don't bother retrying without SSL
-            if not any(k in msg for k in ("ssl", "tls", "certificate", "handshake")):
-                return False, "unreachable"
-
-        # ── Fallback: no SSL (on-prem / local Postgres without SSL) ──────────
-        logger.info("Retrying without SSL for host=%s", host)
-        try:
-            return await _try(ssl_enabled=False)
-        except asyncio.TimeoutError:
-            logger.warning("test_connection timeout ssl=False host=%s", host)
-            return False, "unreachable"
-        except Exception as exc:
-            logger.warning("test_connection ssl=False failed [%s]: %s", type(exc).__name__, exc)
-            msg = str(exc).lower()
-            if any(k in msg for k in ("password", "authentication", "auth")):
-                return False, "auth_failed"
-            return False, "unreachable"
+    return create_async_engine(
+        URL.create("postgresql+psycopg", username=username, password=password,
+                   host=host, port=port, database=database),
+        async_creator=connect, pool_pre_ping=True, **pool_options,
+    )
 
 
 # Module-level singleton — imported by routers and nodes

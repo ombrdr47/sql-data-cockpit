@@ -47,13 +47,15 @@ const rawAxios = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
-export async function attemptTokenRefresh(): Promise<string | null> {
-  try {
-    const { data } = await rawAxios.post('/auth/refresh')
-    return data.access_token ?? null
-  } catch {
-    return null
+let refreshPromise: Promise<string | null> | null = null
+export function attemptTokenRefresh(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = rawAxios.post('/auth/refresh')
+      .then(({ data }) => data.access_token ?? null)
+      .catch(() => null)
+      .finally(() => { refreshPromise = null })
   }
+  return refreshPromise
 }
 
 const api: AxiosInstance = axios.create({
@@ -77,7 +79,7 @@ api.interceptors.response.use(
     const originalRequest = error.config
 
     // Only handle 401, and only retry once per request
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    if (!originalRequest || originalRequest.url?.startsWith('/auth/') || error.response?.status !== 401 || originalRequest._retry) {
       return Promise.reject(error)
     }
 
@@ -128,6 +130,37 @@ api.interceptors.response.use(
 
 export default api
 
+export interface AnalysisSnapshot {
+  succeeded: boolean
+  question: string
+  connection_id: string | null
+  source_name: string
+  columns: string[]
+  rows: Record<string, unknown>[] | null
+  ran_at: string
+  answer?: string
+  chart?: string | null
+}
+
+export interface SavedAnalysis {
+  id: string
+  name: string
+  question: string
+  sql: string
+  connection_id: string | null
+  is_demo: boolean
+  source_name: string
+  snapshot: AnalysisSnapshot
+  created_at: string
+  last_run_at: string
+}
+
+export const analysesApi = {
+  list: (): Promise<SavedAnalysis[]> => api.get('/analyses').then(r => r.data),
+  save: (messageId: string, name: string): Promise<SavedAnalysis> =>
+    api.post('/analyses', { message_id: messageId, name }).then(r => r.data),
+}
+
 // ── BYODB Connections API ──────────────────────────────────────────────────────
 
 export interface UserConnection {
@@ -141,7 +174,10 @@ export interface UserConnection {
   created_at: string
 }
 
+export interface ReferenceFile { name: string; content: string }
+
 export interface ConnectionCreate {
+  references?: { files: ReferenceFile[] }
   name: string
   host: string
   port: number
@@ -156,6 +192,8 @@ export interface ConnectionUpdate {
 }
 
 export const connectionsApi = {
+  getReferences: (id: string): Promise<{ files: ReferenceFile[] }> => api.get(`/connections/${id}/references`).then(r => r.data),
+  saveReferences: (id: string, files: ReferenceFile[]): Promise<{ files: ReferenceFile[] }> => api.put(`/connections/${id}/references`, { files }).then(r => r.data),
   list: (): Promise<UserConnection[]> =>
     api.get('/connections').then((r) => r.data),
 
