@@ -785,7 +785,7 @@ function Footer() {
           <nav className="ml-4 flex items-center gap-4 text-sm" style={{ color: '#5B6270' }}>
             <a href="#how" className="transition-colors hover:text-[#111214]">How it works</a>
             <a href="#" className="transition-colors hover:text-[#111214]">GitHub</a>
-            <a href="#" className="transition-colors hover:text-[#111214]">Docs</a>
+            <a href="/privacy" className="transition-colors hover:text-[#111214]">Privacy</a>
           </nav>
         </div>
         <div className="flex items-center gap-4 text-sm">
