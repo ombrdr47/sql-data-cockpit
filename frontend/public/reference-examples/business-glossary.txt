@@ -1,4 +1,4 @@
-# Example only — confirm these definitions with your data owner
+Example only — confirm these definitions with your data owner
 
 Paid invoice revenue: SUM(txn_hdr.amt) for st = 'P'.
 This metric excludes draft and void invoices; it does not subtract refunds.
