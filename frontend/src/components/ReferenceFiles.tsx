@@ -11,7 +11,7 @@ export function ReferenceFiles({ files, onChange, disabled = false, onReading, p
   return <section className="reference-files" aria-label="Optional database reference files">
     <div className="reference-title"><FileText size={18} /><h3>Help the assistant understand your data</h3><span>Optional</span></div>
     <p>Connect with schema alone, or add a data dictionary, business definitions, and reviewed query examples to clarify unfamiliar names. Accuracy still depends on your schema and definitions.</p>
-    <div className="reference-examples"><span>Download fictional examples:</span>{[['data-dictionary.md', 'Table descriptions'], ['business-glossary.md', 'Business terms'], ['example-questions.sql', 'Questions & SQL']].map(([file, label]) => <a key={file} href={`/reference-examples/${file}`} download>{label} ↗</a>)}</div>
+    <div className="reference-examples"><span>Download fictional examples:</span>{[['data-dictionary.txt', 'Table descriptions'], ['business-glossary.txt', 'Business terms'], ['example-questions.sql', 'Questions & SQL']].map(([file, label]) => <a key={file} href={`/reference-examples/${file}`} download>{label} ↗</a>)}</div>
     <label className="reference-upload">Add reference files<input ref={input} type="file" multiple accept=".txt,.md,.csv,.json,.sql" disabled={disabled || reading} onChange={async e => {
       const selected = Array.from(e.target.files ?? [])
       setError(''); setReading(true); onReading?.(true)
