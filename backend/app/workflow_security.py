@@ -32,10 +32,11 @@ def get_lock_session_factory():
 
 
 @asynccontextmanager
-async def workflow_guard(user_id: str, conversation_id: str):
+async def workflow_guard(user_id: str, conversation_id: str, *, charge: bool = True):
     # Commit quotas before taking a long-lived lock; never hold one pool
     # connection while waiting for a second connection from the same pool.
-    await consume_query_budget(user_id)
+    if charge:
+        await consume_query_budget(user_id)
     async with get_lock_session_factory()() as session:
         async with session.begin():
             for resource in (f'user:{user_id}', f'conversation:{conversation_id}'):
@@ -46,11 +47,14 @@ async def workflow_guard(user_id: str, conversation_id: str):
             yield
 
 
-async def consume_query_budget(user_id: str) -> None:
+async def consume_query_budget(user_id: str, *, sample: bool = False) -> None:
+    limits = [('minute', 60, 20), ('day', 86400, 200)]
+    if sample:
+        limits = [('sample', None, 16)]
     async with get_appdb_session_factory()() as session:
         async with session.begin():
-            for period, seconds, limit in [('minute', 60, 20), ('day', 86400, 200)]:
-                bucket = int(time.time()) // seconds
+            for period, seconds, limit in limits:
+                bucket = int(time.time()) // seconds if seconds else 0
                 used = await session.scalar(text('''
                     INSERT INTO query_usage (user_id, period, bucket, requests)
                     VALUES (CAST(:user_id AS uuid), :period, :bucket, 1)
@@ -61,6 +65,8 @@ async def consume_query_budget(user_id: str) -> None:
                     RETURNING requests
                 '''), {'user_id': user_id, 'period': period, 'bucket': bucket})
                 if used > limit:
+                    if sample:
+                        raise HTTPException(429, 'This sample visit has reached its query limit.')
                     raise HTTPException(429, f'Query limit reached for this {period}. Try again later.')
 
 

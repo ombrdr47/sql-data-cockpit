@@ -7,6 +7,7 @@ get_server_llm()  — uses the server-level GROQ_API_KEY (demo / warm-up only).
 """
 from langchain_groq import ChatGroq
 from .config import get_settings
+from .auth_security import SAMPLE_ROLE
 
 
 def get_llm(api_key: str) -> ChatGroq:
@@ -52,7 +53,13 @@ async def resolve_api_key(user_id: str) -> str:
     settings = get_settings()
     async with get_appdb_session_factory()() as session:
         user = await session.get(User, UUID(user_id))
-        if user is None or (settings.email_verification_required and not user.email_verified):
+        if user is None:
+            raise ValueError("Account is unavailable.")
+        if getattr(user, "role", None) == SAMPLE_ROLE:
+            if settings.groq_api_key:
+                return settings.groq_api_key
+            raise ValueError("The sample workspace is currently unavailable.")
+        if settings.email_verification_required and not user.email_verified:
             raise ValueError("Account is unavailable.")
         if user.email == "demo@chinook.dev":
             if settings.environment.lower() == "production":

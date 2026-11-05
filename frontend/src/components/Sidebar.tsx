@@ -447,7 +447,7 @@ export default function Sidebar({
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-slate-200 truncate leading-tight">{user?.username}</p>
-            <p className="text-[10px] text-slate-600 truncate leading-tight">{user?.email}</p>
+            <p className="text-[10px] text-slate-600 truncate leading-tight">{user?.role === 'sample_guest' ? 'Chinook sample' : user?.email}</p>
           </div>
         </div>
 

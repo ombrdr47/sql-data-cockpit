@@ -33,6 +33,8 @@ from sse_starlette.sse import EventSourceResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .auth import get_current_user
+from .auth_security import SAMPLE_ROLE
+from .workflow_security import consume_query_budget
 from .config import get_settings
 from .db import get_appdb_session
 from .graph import build_graph
@@ -377,6 +379,11 @@ async def chat(
     Streams node-by-node reasoning events. Pauses at human_review and emits
     an approval_required event — the stream then ends. Resume via POST /chat/review.
     """
+    sample = getattr(current_user, "role", None) == SAMPLE_ROLE
+    if sample:
+        if body.connection_id:
+            raise HTTPException(403, "The sample workspace only uses Chinook.")
+        await consume_query_budget(str(current_user.id), sample=True)
     saved_analysis = None
     if body.saved_analysis_id:
         if body.conversation_id:
@@ -474,7 +481,7 @@ async def chat(
             groq_api_key = None
 
     # Demo user fallback — use server key if available
-    if groq_api_key is None and current_user.email == "demo@chinook.dev":
+    if groq_api_key is None and (current_user.email == "demo@chinook.dev" or sample):
         _server_key = _get_settings().groq_api_key
         if _server_key:
             groq_api_key = _server_key
@@ -495,6 +502,7 @@ async def chat(
 
     return EventSourceResponse(_chat_generator(
         graph, question, conversation_id, str(current_user.id),
+        sample=sample,
         connection_id=effective_connection_id,
         datasource_name=connection_name,
         conversation_context=conversation_context,
@@ -600,6 +608,9 @@ async def review_sql(
             detail="Conversation not found or access denied",
         )
 
+    sample = getattr(current_user, "role", None) == SAMPLE_ROLE
+    if sample:
+        await consume_query_budget(str(current_user.id), sample=True)
     graph = app.state.graph
 
     # ── Idempotency: check if already resumed ─────────────────────────────────
@@ -620,7 +631,7 @@ async def review_sql(
             pass  # Checkpoint fetch failure is non-fatal — proceed with resume
 
     return EventSourceResponse(
-        _review_generator(graph, conversation_id, body.approved, body.feedback, str(current_user.id), body.review_token)
+        _review_generator(graph, conversation_id, body.approved, body.feedback, str(current_user.id), body.review_token, sample=sample)
     )
 
 
@@ -734,20 +745,20 @@ async def _emit_answer_and_done(final_state: dict, conversation_id: str):
     }
 
 
-async def _chat_generator(graph, question, conversation_id, user_id, **kwargs):
+async def _chat_generator(graph, question, conversation_id, user_id, *, sample=False, **kwargs):
     from .workflow_security import workflow_guard
     try:
-        async with workflow_guard(user_id, conversation_id):
+        async with workflow_guard(user_id, conversation_id, charge=not sample):
             async for event in _chat_generator_unlocked(graph, question, conversation_id, user_id, **kwargs):
                 yield event
     except HTTPException as exc:
         yield {"event": "message", "data": json.dumps({"type": "error", "content": exc.detail})}
 
 
-async def _review_generator(graph, conversation_id, approved, feedback, user_id, review_token):
+async def _review_generator(graph, conversation_id, approved, feedback, user_id, review_token, *, sample=False):
     from .workflow_security import workflow_guard, require_pending_review
     try:
-        async with workflow_guard(user_id, conversation_id):
+        async with workflow_guard(user_id, conversation_id, charge=not sample):
             snapshot = await graph.aget_state({"configurable": {"thread_id": conversation_id}})
             require_pending_review(snapshot.values, review_token)
             if snapshot.values.get("user_id") != user_id or "human_review" not in snapshot.next:

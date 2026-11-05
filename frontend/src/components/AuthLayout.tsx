@@ -18,7 +18,7 @@ export default function AuthLayout({ children, signup = false }: { children: Rea
           <div className="account-bars">{[['USA', '100%', '$523.06'], ['Canada', '58%', '$303.96'], ['France', '37%', '$195.10']].map(([name, width, value]) => <div key={name}><span>{name}</span><div><i style={{ width }} /></div><span>{value}</span></div>)}</div>
           <footer><Check size={14} />Inspect the SQL. Save the analysis.</footer>
         </div>
-        <Link to={signup ? "/login?demo=1" : "/#product"} className="account-sample">{signup ? "Just looking? Explore the shared demo" : "Take a look inside the workspace"} <ArrowUpRight size={15} /></Link>
+        <Link to={signup ? "/login?demo=1" : "/#product"} className="account-sample">{signup ? "Just looking? Explore the Chinook sample" : "Take a look inside the workspace"} <ArrowUpRight size={15} /></Link>
       </section>
       <section className="account-form-panel">{children}</section>
     </div>

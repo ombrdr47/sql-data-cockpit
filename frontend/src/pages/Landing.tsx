@@ -33,7 +33,7 @@ export default function Landing() {
             <h1>Your data.<br /><em>A clearer picture.</em></h1>
             <div className="home-hero-copy"><p>Ask a question. See the evidence.<br />Keep the analysis worth coming back to.</p><p className="home-description">SQL Cockpit brings questions, query results, and reusable analyses into one focused workspace.</p>
               <Link to="/login?demo=1" className="home-button">Try the sample workspace <ArrowRight size={17} /></Link>
-              <span className="home-hero-note">Explore with the shared demo account.</span>
+              <span className="home-hero-note">Explore Chinook without signing up.</span>
             </div>
           </div>
           <div className="home-preview-intro"><span><span className="home-small-dot" /> One question. An answer you can inspect.</span><a href="#product">Take a look <ArrowDown size={14} /></a></div>
@@ -57,7 +57,7 @@ export default function Landing() {
               <div className="home-saved-top"><Bookmark size={16} /><span>Your saved analyses</span><span className="home-example-label">EXAMPLE</span></div>
               <div className="home-saved-record"><span className="home-saved-icon"><BarChart3 size={24} /></span><div><h3>Revenue by country</h3><p>Chinook sample · 3 returned rows</p></div><Check size={16} /></div>
               <div className="home-saved-properties"><span>Question<span>Which countries bring in the most revenue?</span></span><span>Query<span>Saved SQL, preserved on every rerun</span></span><span>Result<span>Last successful snapshot</span></span></div>
-              <div className="home-saved-bottom"><span><ShieldCheck size={14} /> Approval required on rerun</span><Link to="/login?demo=1">Try a saved analysis <ArrowRight size={14} /></Link></div>
+              <div className="home-saved-bottom"><span><ShieldCheck size={14} /> Approval required on rerun</span><Link to="/login?demo=1">Try the sample workspace <ArrowRight size={14} /></Link></div>
             </div>
           </div>
         </section>
@@ -66,7 +66,7 @@ export default function Landing() {
           <div><span className="home-kicker">BEFORE YOU CONNECT</span><h2>A few useful details.</h2><p>Start with sample data.<br />Bring your own database when you’re ready.</p></div>
           <div className="home-faq-list">
             {[
-              ['Can I try it without connecting my database?', 'Yes. The shared demo account includes the Chinook sample database. The sample workspace lets you ask questions, inspect results, and try saved analyses. Use a personal account for your own data.'],
+              ['Can I try it without connecting my database?', 'Yes. Each sample workspace uses the Chinook sample database. The sample workspace lets you ask questions, inspect results, and try saved analyses. Use a personal account for your own data.'],
               ['What do I need for my own workspace?', 'A personal account, a Groq API key, and an accessible PostgreSQL database. Connection setup asks for your database details. Use a dedicated read-only database user.'],
               ['Does the app change my database?', 'The query flow validates SELECT queries and requires your approval before execution. Use read-only database credentials as an additional safeguard. SQL validation does not guarantee that a business calculation is correct.'],
               ['What data is sent to the AI provider?', 'Schema information, relevant conversation context, and query results may be sent to Groq to generate queries and explain answers. Returned results are also stored by the app so you can revisit analyses. Only connect data you are authorized to process this way.'],

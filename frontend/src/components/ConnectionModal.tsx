@@ -19,7 +19,7 @@ const failures: Record<string, string> = {
 export default function ConnectionModal({ onClose, onSaved }: Props) {
   const { user } = useAuth()
   const queryClient = useQueryClient()
-  const isDemo = user?.email === 'demo@chinook.dev'
+  const isDemo = user?.role === 'sample_guest' || user?.email === 'demo@chinook.dev'
   const [form, setForm] = useState<ConnectionCreate>({ name: '', host: '', port: 5432, database: '', username: '', password: '' })
   const [port, setPort] = useState('5432')
   const [showPassword, setShowPassword] = useState(false)
@@ -62,7 +62,7 @@ export default function ConnectionModal({ onClose, onSaved }: Props) {
   const connected = savedConn?.status === 'connected'
   return <dialog ref={dialog} className="connection-dialog" aria-labelledby="connection-title" onCancel={e => { e.preventDefault(); if (!loading) onClose() }}>
     <header><div className="connection-heading-icon"><Database size={22} /></div><div><span>DATA SOURCES / POSTGRESQL</span><h2 id="connection-title">{savedConn ? connected ? 'Your database is connected.' : 'Saved, but not connected yet.' : 'Bring your data into focus.'}</h2></div><button type="button" aria-label="Close connection setup" disabled={loading} onClick={onClose}><X size={20} /></button></header>
-    {isDemo ? <div className="connection-demo"><Database size={32} /><h3>A personal workspace for your database.</h3><p>You’re using the shared sample account. Create a personal account to connect your own PostgreSQL database. The Chinook sample is ready to explore here.</p><Link className="connection-primary" to="/signup" onClick={onClose}>Create a personal account <ArrowRight size={16} /></Link><button className="connection-secondary" onClick={onClose}>Keep exploring the sample</button></div>
+    {isDemo ? <div className="connection-demo"><Database size={32} /><h3>A personal workspace for your database.</h3><p>You’re using a Chinook sample workspace. Create a personal account to connect your own PostgreSQL database. The Chinook sample is ready to explore here.</p><Link className="connection-primary" to="/signup" onClick={onClose}>Create a personal account <ArrowRight size={16} /></Link><button className="connection-secondary" onClick={onClose}>Keep exploring the sample</button></div>
     : savedConn ? <div className="connection-outcome">
       <div className={connected ? 'connection-feedback success' : 'connection-feedback'} role="status">{connected ? <CheckCircle2 size={23} /> : <AlertCircle size={23} />}<div><h3>{connected ? 'Connection test passed' : 'Connection test needs attention'}</h3><p>{connected ? 'Open a new analysis with this data source selected. You’ll review each generated query before it runs.' : failures[savedConn.status] ?? 'The test did not succeed. Review the saved connection in Settings, then try again.'}</p></div></div>
       <dl><div><dt>Connection</dt><dd>{savedConn.name}</dd></div><div><dt>Host</dt><dd>{savedConn.host_masked}:{savedConn.port}</dd></div><div><dt>Database</dt><dd>{savedConn.database_masked}</dd></div></dl>

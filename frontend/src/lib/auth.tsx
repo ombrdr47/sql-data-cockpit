@@ -26,6 +26,7 @@ interface AuthState {
 interface AuthContextValue extends AuthState {
   login: (email: string, password: string) => Promise<void>
   signup: (email: string, username: string, password: string) => Promise<boolean>
+  startSample: () => Promise<void>
   logout: () => Promise<void>
   refreshUser: () => Promise<void>
 }
@@ -112,6 +113,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return true
   }, [queryClient])
 
+  const startSample = useCallback(async () => {
+    const { data } = await api.post('/auth/sample')
+    queryClient.clear()
+    setAccessToken(data.access_token)
+    setState({ user: data.user, isLoading: false, isAuthenticated: true })
+  }, [queryClient])
+
   const logout = useCallback(async () => {
     try {
       await api.post('/auth/logout')
@@ -131,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [queryClient])
 
   return (
-    <AuthContext.Provider value={{ ...state, login, signup, logout, refreshUser }}>
+    <AuthContext.Provider value={{ ...state, login, signup, startSample, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   )

@@ -9,11 +9,12 @@ Token strategy:
     httpOnly = JavaScript cannot read it → XSS-resistant
 """
 from datetime import datetime, timezone
+from uuid import uuid4
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from pydantic import BaseModel, EmailStr, field_validator, model_validator
-from sqlalchemy import select,update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import (
@@ -30,10 +31,12 @@ from ..db import get_appdb_session
 from ..config import get_settings
 from ..models import User, RefreshToken, AccountToken
 
-from ..auth_security import protect_auth, require_personal_account
+from ..auth_security import SAMPLE_ROLE, protect_auth, require_personal_account
+from ..workflow_security import lock_key
 
 router = APIRouter(prefix="/auth", tags=["auth"], dependencies=[Depends(protect_auth)])
 DUMMY_PASSWORD_HASH = hash_password("unusable-dummy-verification-password")
+SAMPLE_PASSWORD_HASH = hash_password(create_refresh_token()[:64])
 
 COOKIE_NAME = "refresh_token"
 
@@ -130,8 +133,44 @@ async def auth_options():
     return {
         "email_verification_required": settings.email_verification_required,
         "password_reset_available": settings.mail_transport != "disabled",
-        "demo_available": settings.environment.lower() != "production",
+        "demo_available": bool(settings.groq_api_key),
     }
+
+
+@router.post("/sample", response_model=TokenResponse, status_code=201)
+async def start_sample(response: Response, session: AsyncSession = Depends(get_appdb_session)):
+    settings = get_settings()
+    if not settings.groq_api_key:
+        raise HTTPException(503, "The sample workspace is currently unavailable.")
+
+    # Bound public account creation across all workers without involving real users.
+    await session.execute(text("SELECT pg_advisory_xact_lock(:key)"),
+                          {"key": lock_key("public-sample-starts")})
+    day_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+    starts = await session.scalar(select(func.count()).select_from(User).where(
+        User.role == SAMPLE_ROLE, User.created_at >= day_start,
+    ))
+    if starts >= 40:
+        raise HTTPException(429, "The sample workspace has reached its daily visit limit.")
+
+    guest_id = uuid4()
+    guest = User(
+        id=guest_id, email=f"sample-{guest_id.hex}@example.invalid",
+        username=f"sample_{guest_id.hex}", role=SAMPLE_ROLE,
+        hashed_password=SAMPLE_PASSWORD_HASH,
+    )
+    session.add(guest)
+    await session.commit()
+    secure = settings.environment.lower() == "production" or settings.secure_cookies
+    for path in ("/auth", "/auth/refresh"):
+        response.delete_cookie(COOKIE_NAME, path=path, secure=secure,
+                               httponly=True, samesite="none" if secure else "lax")
+    return TokenResponse(
+        access_token=create_access_token(str(guest.id), guest.email, guest.session_version),
+        user_id=str(guest.id), username=guest.username, email=guest.email,
+        user=UserResponse(user_id=str(guest.id), username="Chinook guest", email=guest.email,
+                          role=SAMPLE_ROLE, created_at=guest.created_at),
+    )
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -205,7 +244,7 @@ async def login(
 
     # Constant-time check (verify even if user not found, to prevent timing attacks)
     password_valid = verify_password(body.password, user.hashed_password if user else DUMMY_PASSWORD_HASH)
-    if user is None or not password_valid:
+    if user is None or not password_valid or getattr(user, 'role', None) == SAMPLE_ROLE:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",

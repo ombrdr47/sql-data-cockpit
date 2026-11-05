@@ -562,7 +562,7 @@ def isolated_workflow_io(app):
     """HTTP tests mock storage; lock policy is covered separately; live PostgreSQL verification is a release check."""
     from contextlib import asynccontextmanager
     @asynccontextmanager
-    async def guard(*args):
+    async def guard(*args, **kwargs):
         yield
     factory = MagicMock(return_value=AsyncMock())
     with patch('backend.app.db.get_appdb_session_factory', return_value=factory), \
