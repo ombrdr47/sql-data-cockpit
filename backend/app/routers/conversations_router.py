@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
+from ..auth_security import SAMPLE_ROLE
 from ..db import get_appdb_session
 from ..memory import (
     create_conversation,
@@ -91,6 +92,8 @@ async def create_convo(
     current_user: User = Depends(get_current_user),
     session: AsyncSession = Depends(get_appdb_session),
 ):
+    if getattr(current_user, "role", None) == SAMPLE_ROLE:
+        raise HTTPException(403, "Ask a question to start a sample conversation.")
     convo = await create_conversation(session, current_user.id, body.title)
     await session.commit()
     return ConversationResponse(

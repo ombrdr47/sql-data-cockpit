@@ -131,5 +131,5 @@ async def test_options_hide_unavailable_email_and_demo_actions():
         assert await auth_router.auth_options() == {
             'email_verification_required': False,
             'password_reset_available': False,
-            'demo_available': False,
+            'demo_available': True,
         }

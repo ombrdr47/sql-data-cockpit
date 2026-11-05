@@ -578,7 +578,7 @@ export default function Chat() {
             <span className={`workspace-status ${isLoading ? 'is-working' : ''}`} role="status"><i />{isLoading ? 'Working…' : hasPendingReview ? 'Needs review' : 'Ready'}</span>
             <button className="explore-library-button" aria-label="Saved analyses" onClick={() => setLibraryOpen(true)}><Bookmark size={15} /><span>Saved analyses</span></button>
             <button className="workspace-icon-button" onClick={handleNewConversation} title="New analysis" aria-label="New analysis"><Plus size={18} /></button>
-            <Link to="/settings" className="workspace-icon-button" aria-label="Settings"><Settings size={17} /></Link>
+            {user?.role !== 'sample_guest' && <Link to="/settings" className="workspace-icon-button" aria-label="Settings"><Settings size={17} /></Link>}
           </div>
         </header>
 

@@ -25,6 +25,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth import get_current_user
+from ..auth_security import SAMPLE_ROLE
 from ..config import get_settings
 from ..crypto import decrypt_field, encrypt_field, get_fernet
 from ..db import get_appdb_session
@@ -50,7 +51,7 @@ def _require_non_demo(current_user: User = Depends(get_current_user)) -> User:
     (connections) to prevent one demo session from affecting another.
     Regular accounts are passed through unchanged.
     """
-    if current_user.email == DEMO_EMAIL:
+    if current_user.email == DEMO_EMAIL or getattr(current_user, "role", None) == SAMPLE_ROLE:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=(
@@ -246,7 +247,7 @@ async def delete_connection(
 @router.post("/{connection_id}/test", response_model=ConnectionResponse)
 async def test_connection(
     connection_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(_require_non_demo),
     session: AsyncSession = Depends(get_appdb_session),
 ):
     """FR-12: Re-test an existing connection and update its status."""

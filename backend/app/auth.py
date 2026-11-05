@@ -26,6 +26,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .config import get_settings
+from .auth_security import SAMPLE_ROLE
 from .db import get_appdb_session
 from .models import User, RefreshToken
 
@@ -137,7 +138,8 @@ async def get_current_user(
         )
     if user.email == "demo@chinook.dev" and get_settings().environment.lower() == "production":
         raise HTTPException(status_code=403, detail="Shared demo access is disabled in production.")
-    if get_settings().email_verification_required and not user.email_verified:
+    if (get_settings().email_verification_required and not user.email_verified
+            and getattr(user, "role", None) != SAMPLE_ROLE):
         raise HTTPException(status_code=403, detail="Verify your email before continuing.")
     if payload.get("ver", 0) != user.session_version:
         raise HTTPException(status_code=401, detail="Session expired. Sign in again.")
@@ -192,6 +194,8 @@ async def rotate_refresh_token(
     # Load user
     user_result = await session.execute(select(User).where(User.id == rt.user_id))
     user = user_result.scalar_one()
+    if getattr(user, "role", None) == SAMPLE_ROLE:
+        raise HTTPException(401, "Sample sessions cannot be refreshed.")
 
     if user.email == "demo@chinook.dev" and get_settings().environment.lower() == "production":
         raise HTTPException(status_code=403, detail="Shared demo access is disabled in production.")

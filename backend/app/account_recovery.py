@@ -6,7 +6,7 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select, update
 from .auth import hash_token, create_refresh_token, hash_password
 from .config import get_settings
-from .auth_security import protect_auth
+from .auth_security import SAMPLE_ROLE, protect_auth
 from .db import get_appdb_session, get_appdb_session_factory
 from .models import User, AccountToken, RefreshToken
 from .account_email import send_account_email
@@ -49,7 +49,7 @@ async def deliver_requested_link(email, purpose):
     try:
         async with get_appdb_session_factory()() as session:
             user = await session.scalar(select(User).where(User.email == email).with_for_update())
-            if not user or user.email == 'demo@chinook.dev' or (purpose == 'verify' and user.email_verified):
+            if not user or user.email == 'demo@chinook.dev' or getattr(user, 'role', None) == SAMPLE_ROLE or (purpose == 'verify' and user.email_verified):
                 return
             await issue_link(session, user, purpose)
             await session.commit()
@@ -75,7 +75,7 @@ async def consume_link(session, token, purpose):
     # Lock the user first, consistently with issuing links and other password changes.
     user = await session.scalar(select(User).where(User.id == uid).with_for_update())
     used = await session.scalar(update(AccountToken).where(AccountToken.token_hash == hash_token(token), AccountToken.purpose == purpose, AccountToken.consumed_at.is_(None), AccountToken.expires_at > datetime.now(timezone.utc)).values(consumed_at=now).returning(AccountToken.id))
-    if not used or not user or user.email == 'demo@chinook.dev':
+    if not used or not user or user.email == 'demo@chinook.dev' or getattr(user, 'role', None) == SAMPLE_ROLE:
         raise HTTPException(400, 'This link is invalid, expired, or already used. Request a new one.')
     return user
 

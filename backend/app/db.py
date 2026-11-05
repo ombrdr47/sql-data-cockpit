@@ -221,6 +221,7 @@ async def execute_chinook_query(
 
     engine = get_chinook_engine()
     async with engine.connect() as conn:
+        await conn.execute(text("SET TRANSACTION READ ONLY"))
         result = await conn.execute(text(sql))
         keys = list(result.keys())
         rows = result.fetchmany(cap)

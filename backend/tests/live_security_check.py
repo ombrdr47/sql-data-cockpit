@@ -8,7 +8,7 @@ import asyncio
 import json
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 from fastapi import HTTPException
@@ -140,6 +140,30 @@ async def main():
                     blocked = await client.post('/chat', json={'question': 'Count artists', 'conversation_id': str(old_conversation)}, headers=auth)
                     assert blocked.status_code == 409, blocked.status_code
                     print('PASS: deleting a source prevents fallback to sample data in old conversations')
+
+                    sample_headers = []
+                    for _ in range(2):
+                        guest = await client.post('/auth/sample', headers={'Origin': 'http://localhost:5173'})
+                        assert guest.status_code == 201, guest.status_code
+                        payload = guest.json()
+                        ids.append(UUID(payload['user_id']))
+                        assert payload['user']['role'] == 'sample_guest'
+                        sample_headers.append({'Authorization': 'Bearer ' + payload['access_token']})
+                    assert ids[-1] != ids[-2]
+                    first_guest, second_guest = sample_headers
+                    proposal_events = events(await client.post('/chat', json={'question': 'Count the artists'}, headers=first_guest))
+                    sample_proposal = next(e for e in proposal_events if e['type'] == 'approval_required')
+                    sample_cid = sample_proposal['conversation_id']
+                    conversations.append(sample_cid)
+                    review = {'approved': True, 'review_token': sample_proposal['review_token']}
+                    assert (await client.get('/conversations', headers=second_guest)).json() == []
+                    assert (await client.post(f'/chat/review/{sample_cid}', json=review, headers=second_guest)).status_code == 404
+                    assert (await client.put('/settings/api-key', json={'api_key': 'gsk_test'}, headers=first_guest)).status_code == 403
+                    assert (await client.post('/chat', json={'question': 'Count artists', 'connection_id': str(uuid4())}, headers=first_guest)).status_code == 403
+                    result = events(await client.post(f'/chat/review/{sample_cid}', json=review, headers=first_guest))
+                    assert any(e['type'] == 'done' and e.get('query_succeeded') for e in result)
+                    print('PASS: isolated sample guests can approve and run real Chinook SQL without credentials')
+
 
     finally:
         async with factory() as session:
