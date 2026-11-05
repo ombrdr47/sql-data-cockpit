@@ -88,3 +88,22 @@ def test_unrelated_host_does_not_use_supabase_ca():
     import certifi
     url = 'postgresql://u:p@aws-0-ap-southeast-1.pooler.supabase.com.example.org/db'
     assert conninfo_to_dict(checkpoint_database_url(url, True))['sslrootcert'] == certifi.where()
+
+
+@pytest.mark.parametrize(('host', 'port', 'expected_port'), [
+    ('aws-0-ap-southeast-1.pooler.supabase.com', 6543, 5432),
+    ('aws-0-ap-southeast-1.pooler.supabase.com', 5432, 5432),
+    ('db.example.supabase.co', 6543, 6543),
+    ('other.example.com', 6543, 6543),
+])
+def test_only_shared_supabase_transaction_port_switches_to_session(host, port, expected_port):
+    from sqlalchemy.engine import make_url
+    from backend.app.database_transport import migration_database_url
+
+    url = f'postgresql://user.project:p%40ss@{host}:{port}/db'
+    runtime, _ = async_database_options(url, True)
+    migration = make_url(migration_database_url(url, True))
+    checkpoint = conninfo_to_dict(checkpoint_database_url(url, True))
+    assert runtime.port == migration.port == int(checkpoint['port']) == expected_port
+    assert runtime.host == migration.host == checkpoint['host'] == host
+    assert runtime.password == migration.password == checkpoint['password'] == 'p@ss'
