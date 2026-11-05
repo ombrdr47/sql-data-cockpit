@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     queryClient.clear()
     setAccessToken(data.access_token)
     setState({
-      user: { user_id: data.user_id, username: data.username, email: data.email, role: 'user' },
+      user: data.user ?? { user_id: data.user_id, username: data.username, email: data.email, role: 'user' },
       isLoading: false,
       isAuthenticated: true,
     })

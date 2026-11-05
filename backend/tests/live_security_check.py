@@ -142,9 +142,15 @@ async def main():
                     print('PASS: deleting a source prevents fallback to sample data in old conversations')
 
                     sample_headers = []
-                    for _ in range(2):
-                        guest = await client.post('/auth/sample', headers={'Origin': 'http://localhost:5173'})
-                        assert guest.status_code == 201, guest.status_code
+                    sample_origin = {'Origin': 'http://localhost:5173'}
+                    button = await client.post('/auth/sample', headers=sample_origin)
+                    production = get_settings().model_copy(update={'environment': 'production'})
+                    with patch('backend.app.routers.auth_router.get_settings', return_value=production):
+                        manual = await client.post('/auth/login', headers=sample_origin, json={
+                            'email': 'demo@chinook.dev', 'password': 'demo1234',
+                        })
+                    for guest, expected_status in [(button, 201), (manual, 200)]:
+                        assert guest.status_code == expected_status, guest.status_code
                         payload = guest.json()
                         ids.append(UUID(payload['user_id']))
                         assert payload['user']['role'] == 'sample_guest'
