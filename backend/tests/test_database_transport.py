@@ -62,3 +62,29 @@ def test_provider_ca_from_url_is_preserved_for_checkpoint_and_migration():
 def test_missing_operator_ca_fails_closed():
     with pytest.raises(OSError):
         async_database_options('postgresql://u:p@db.example/db', True, '/nonexistent/provider-ca.crt')
+
+
+@pytest.mark.parametrize('host', ['aws-0-ap-southeast-1.pooler.supabase.com', 'db.example.supabase.co'])
+def test_supabase_transport_uses_bundled_ca_for_all_drivers(host):
+    from sqlalchemy.engine import make_url
+    from backend.app.database_transport import migration_database_url
+
+    url = f'postgresql://u:p@{host}/db'
+    _, options = async_database_options(url, True)
+    assert options['ssl'].check_hostname
+    assert any(
+        ('commonName', 'Supabase Root 2021 CA') in group
+        for cert in options['ssl'].get_ca_certs()
+        for group in cert['subject']
+    )
+    migration = make_url(migration_database_url(url, True))
+    checkpoint = conninfo_to_dict(checkpoint_database_url(url, True))
+    assert migration.query['sslrootcert'] == checkpoint['sslrootcert']
+    assert checkpoint['sslrootcert'].endswith('/supabase-prod-ca-2021.crt')
+    assert migration.query['sslmode'] == checkpoint['sslmode'] == 'verify-full'
+
+
+def test_unrelated_host_does_not_use_supabase_ca():
+    import certifi
+    url = 'postgresql://u:p@aws-0-ap-southeast-1.pooler.supabase.com.example.org/db'
+    assert conninfo_to_dict(checkpoint_database_url(url, True))['sslrootcert'] == certifi.where()

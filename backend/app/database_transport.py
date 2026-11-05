@@ -1,7 +1,25 @@
 """Driver-specific, certificate-verified transport for hosted application databases."""
+import re
 import ssl
+from pathlib import Path
+
 import certifi
 from sqlalchemy.engine import make_url
+
+
+# Public CA linked by the Supabase dashboard's production SSL settings.
+# https://supabase-downloads.s3-ap-southeast-1.amazonaws.com/prod/ssl/prod-ca-2021.crt
+_SUPABASE_CA = Path(__file__).resolve().parent / 'certs' / 'supabase-prod-ca-2021.crt'
+_SUPABASE_HOST = re.compile(
+    r'(?:aws-[0-9]+-[a-z0-9-]+\.pooler\.supabase\.com|db\.[a-z0-9]+\.supabase\.co)',
+    re.IGNORECASE,
+)
+
+
+def _default_ca(host: str | None) -> str:
+    if host and _SUPABASE_HOST.fullmatch(host):
+        return str(_SUPABASE_CA)
+    return certifi.where()
 
 
 def async_database_options(url: str, production: bool, ca_file: str | None = None):
@@ -12,7 +30,7 @@ def async_database_options(url: str, production: bool, ca_file: str | None = Non
         raise ValueError('A PostgreSQL database is required.')
     # Provider/libpq URLs contain options asyncpg does not accept. TLS is configured
     # explicitly here; a supplied sslmode cannot weaken certificate verification.
-    ca_bundle = ca_file or parsed.query.get('sslrootcert') or certifi.where()
+    ca_bundle = ca_file or parsed.query.get('sslrootcert') or _default_ca(parsed.host)
     query = {key: value for key, value in parsed.query.items()
              if key not in {'ssl', 'sslmode', 'sslrootcert', 'channel_binding'}}
     parsed = parsed.set(drivername='postgresql+asyncpg', query=query)
@@ -24,7 +42,8 @@ def checkpoint_database_url(url: str, production: bool, ca_file: str | None = No
         return url
     from psycopg.conninfo import make_conninfo, conninfo_to_dict
     url = url.replace('postgresql+psycopg://', 'postgresql://').replace('postgresql+asyncpg://', 'postgresql://')
-    ca_bundle = ca_file or conninfo_to_dict(url).get('sslrootcert') or certifi.where()
+    options = conninfo_to_dict(url)
+    ca_bundle = ca_file or options.get('sslrootcert') or _default_ca(options.get('host'))
     return make_conninfo(url, sslmode='verify-full', sslrootcert=ca_bundle)
 
 
@@ -32,5 +51,5 @@ def migration_database_url(url: str, production: bool, ca_file: str | None = Non
     if not production:
         return url
     parsed = make_url(url).set(drivername='postgresql')
-    ca_bundle = ca_file or parsed.query.get('sslrootcert') or certifi.where()
+    ca_bundle = ca_file or parsed.query.get('sslrootcert') or _default_ca(parsed.host)
     return parsed.update_query_dict({'sslmode': 'verify-full', 'sslrootcert': ca_bundle}).render_as_string(hide_password=False)
