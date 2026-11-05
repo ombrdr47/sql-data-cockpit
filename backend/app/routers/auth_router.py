@@ -239,6 +239,11 @@ async def login(
     response: Response,
     session: AsyncSession = Depends(get_appdb_session),
 ):
+    # The public demo credentials are an entry point to a new guest workspace.
+    if (get_settings().environment.lower() == "production"
+            and body.email.lower() == "demo@chinook.dev" and body.password == "demo1234"):
+        return await start_sample(response, session)
+
     result = await session.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
 

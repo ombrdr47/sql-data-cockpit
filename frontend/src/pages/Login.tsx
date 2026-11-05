@@ -55,6 +55,7 @@ export default function Login() {
     <div className="account-divider"><span>OR EXPLORE FIRST</span></div>
     <button type="button" className="account-demo" disabled={loading || startingSample} onClick={handleSample}>{startingSample ? 'Opening Chinook…' : 'Use sample account'} <ArrowRight size={15} /></button>
     <p className="account-hint">Explore Chinook in your own short-lived sample session. No sign-up needed.</p>
+    <p className="account-hint">To sign in manually, use <code>demo@chinook.dev</code> and password <code>demo1234</code>.</p>
     </>}
     <p className="account-switch">New to SQL Cockpit? <Link to="/signup">Create an account</Link></p>
   </AuthLayout>
