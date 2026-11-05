@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ArrowUpRight, BarChart3, Check, Code2, Copy, Database, Loader2, RotateCcw, Table2 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
@@ -6,6 +6,7 @@ import DataTable from './DataTable'
 import ChartView from './ChartView'
 import type { Message } from './MessageBubble'
 import SaveAnalysisButton from './SaveAnalysisButton'
+import { chartFromResults, chartRequested } from '../lib/resultChart'
 
 export interface AnalysisResult {
   message: Message
@@ -59,11 +60,18 @@ function ResultDetail({ result: { message, question }, busy, onAsk, onConversati
   onAsk: (question: string) => void
   onConversation: () => void
 }) {
-  const [view, setView] = useState<'results' | 'chart' | 'sql'>('results')
+  const [selectedView, setView] = useState<'results' | 'chart' | 'sql' | null>(null)
   const [copyState, setCopyState] = useState('Copy SQL')
   const sql = message.approvalRequest?.sql || message.generatedSql
   const pending = message.approvalRequest?.status === 'pending'
   const failed = Boolean(message.error)
+  const chart = useMemo(
+    () => message.tableData ? chartFromResults(message.tableData) : null,
+    [message.tableData],
+  )
+  const chartData = message.chartBase64 || chart?.json
+  const chartReady = !failed && !pending && !message.isStreaming && Boolean(chartData)
+  const view = selectedView ?? (chartReady && chartRequested(question) ? 'chart' : 'results')
   const status = failed ? 'Could not complete' : pending ? 'Awaiting approval' : message.isStreaming ? 'Working' : 'Answer ready'
 
   async function copySql() {
@@ -102,8 +110,17 @@ function ResultDetail({ result: { message, question }, busy, onAsk, onConversati
             </div>
           ) : !message.content && !pending ? <div className="explore-waiting">{message.isStreaming ? 'Preparing your answer…' : 'No result data is available for this answer.'}</div> : null}
         </>}
-        {view === 'chart' && (message.chartBase64 ? <ChartView base64={message.chartBase64} /> : <div className="explore-view-empty"><BarChart3 size={28} /><h3>No chart for this answer yet</h3><p>Ask for a chart once the query has completed.</p>
-          <button className="explore-action" disabled={busy || pending || failed || !message.tableData} onClick={() => onAsk(`Create a chart for this analysis: ${question}`)}>Create a chart <ArrowUpRight size={14} /></button>
+        {view === 'chart' && (chartReady && chartData ? <>
+          <ChartView base64={chartData} />
+          {!message.chartBase64 && chart && message.tableData && chart.plottedRows < message.tableData.rows.length && (
+            <p className="explore-result-footnote">Showing {chart.plottedRows} of {message.tableData.rows.length} returned rows. Open Results for the full table.</p>
+          )}
+        </> : <div className="explore-view-empty">
+          <BarChart3 size={28} />
+          <h3>{pending || message.isStreaming ? 'Waiting for query results' : 'No chart for this result'}</h3>
+          <p>{pending || message.isStreaming
+            ? 'A chart can be drawn after the query returns its rows.'
+            : 'Charts need at least two rows with a numeric value and distinct labels or dates. Open Results to inspect the returned data.'}</p>
         </div>)}
         {view === 'sql' && (sql ? <div className="explore-sql"><div><span>PostgreSQL · {pending ? 'Awaiting approval' : 'Generated query'}</span><button onClick={copySql}>{copyState === 'Copied' ? <Check size={14} /> : <Copy size={14} />}{copyState}</button></div><pre tabIndex={0}><code>{sql}</code></pre></div> : <div className="explore-waiting">The generated query will appear here.</div>)}
       </div>

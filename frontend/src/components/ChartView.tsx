@@ -1,6 +1,6 @@
 /**
  * components/ChartView.tsx
- * Renders an interactive Plotly chart from the python_tool node.
+ * Renders an interactive Plotly chart from result rows or a legacy snapshot.
  *
  * Modebar fix: displayModeBar is 'hover' (shows on mouse-over).
  * Restored zoom in/out, pan, autoscale, and reset buttons while keeping
@@ -17,7 +17,7 @@ interface ChartViewProps {
 
 /** Minimal type for the Plotly global loaded via CDN script tag. */
 interface PlotlyLib {
-  newPlot: (el: HTMLElement, data: unknown[], layout: unknown, config: unknown) => void
+  newPlot: (el: HTMLElement, data: unknown[], layout: unknown, config: unknown) => Promise<unknown>
   react:   (el: HTMLElement, data: unknown[], layout: unknown, config: unknown) => void
   purge:   (el: HTMLElement) => void
   Plots:   { resize: (el: HTMLElement) => void }
@@ -35,20 +35,26 @@ const MODEBAR_REMOVE = [
 
 export default function ChartView({ base64 }: ChartViewProps) {
   const [isExpanded, setIsExpanded] = useState(false)
+  const [failedPlot, setFailedPlot] = useState<string | null>(null)
   const plotRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const Plotly = (window as Window & { Plotly?: PlotlyLib }).Plotly
 
   const plotData = useMemo(() => {
     try {
-      return JSON.parse(base64)
+      const parsed = JSON.parse(base64)
+      return Array.isArray(parsed?.data) && parsed.data.length ? parsed : null
     } catch (e) {
       console.error('Failed to parse Plotly JSON:', e)
       return null
     }
   }, [base64])
+  const bar = plotData?.data[0]
+  const height = bar?.type === 'bar' && bar.orientation === 'h' && Array.isArray(bar.y)
+    ? Math.min(620, Math.max(320, 95 + bar.y.length * 21))
+    : 320
 
   useEffect(() => {
-    const Plotly = (window as Window & { Plotly?: PlotlyLib }).Plotly
     if (!plotData || !plotRef.current || !Plotly) return
 
     const layout = {
@@ -102,8 +108,6 @@ export default function ChartView({ base64 }: ChartViewProps) {
       displaylogo: false,
     }
 
-    Plotly.newPlot(plotRef.current, plotData.data, layout, config)
-
     // Apply CSS to the modebar so it sits ABOVE the plot area in the padding space
     const el = plotRef.current
     const applyModebarStyle = () => {
@@ -129,8 +133,14 @@ export default function ChartView({ base64 }: ChartViewProps) {
       })
     }
 
-    el?.addEventListener('plotly_afterplot', applyModebarStyle, { once: true })
-    setTimeout(applyModebarStyle, 200)
+    let active = true
+    void Promise.resolve().then(() => {
+      if (active) return Plotly.newPlot(el, plotData.data, layout, config)
+    }).then(() => {
+      if (active) applyModebarStyle()
+    }).catch(() => {
+      if (active) setFailedPlot(base64)
+    })
 
     // ResizeObserver ensures Plotly dynamically resizes when collapsing/expanding or window resizing
     const observer = new ResizeObserver(() => {
@@ -143,12 +153,13 @@ export default function ChartView({ base64 }: ChartViewProps) {
     observer.observe(el)
 
     return () => {
+      active = false
       observer.disconnect()
       if (el) {
         try { Plotly.purge(el) } catch { /* ignore */ }
       }
     }
-  }, [plotData])
+  }, [base64, plotData, Plotly])
 
   return (
     <motion.div
@@ -219,15 +230,15 @@ export default function ChartView({ base64 }: ChartViewProps) {
 
         {/* Chart container — animate height cleanly without unmounting/remounting DOM */}
         <motion.div
-          animate={{ height: isExpanded ? 620 : 320 }}
+          animate={{ height: isExpanded ? Math.max(620, height + 120) : height }}
           transition={{ duration: 0.25 }}
           className="px-4 pt-8 pb-4 relative"
         >
-          {plotData ? (
+          {plotData && Plotly && failedPlot !== base64 ? (
             <div ref={plotRef} className="w-full h-full" />
           ) : (
             <div className="flex items-center justify-center h-full text-slate-500 text-sm">
-              Invalid chart data
+              {plotData ? 'The chart could not load. The returned rows are available under Results.' : 'Invalid chart data'}
             </div>
           )}
         </motion.div>

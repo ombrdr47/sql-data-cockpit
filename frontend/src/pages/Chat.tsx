@@ -16,6 +16,7 @@ import SavedAnalyses from '../components/SavedAnalyses'
 import { Bookmark, PanelLeft, Plus, Settings, Database, ArrowUpRight } from 'lucide-react'
 import '../explore.css'
 import { useAuth } from '../lib/auth'
+import { chartFromResults, chartRequested } from '../lib/resultChart'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
@@ -473,6 +474,11 @@ export default function Chat() {
                     ? { ...m, isStreaming: false, approvalRequest: null, generatedSql: streamedSql, chartBase64: streamedChart || event.chart_base64, retryCount: event.retry_count, tableData: streamedTable, persistedId: event.message_id, querySucceeded: event.query_succeeded, ranAt: event.ran_at, error: event.query_succeeded === false }
                     : m
                 ))
+                if (event.query_succeeded && chartRequested(targetMsg?.approvalRequest?.question ?? '')
+                    && (streamedChart || (streamedTable && chartFromResults(streamedTable)))) {
+                  setSelectedResultId(messageId)
+                  setMobileView('results')
+                }
                 queryClient.invalidateQueries({ queryKey: ['conversations'] })
                 queryClient.invalidateQueries({ queryKey: ['saved-analyses'] })
               }
