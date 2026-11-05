@@ -20,7 +20,7 @@ export default function ReferenceDemo() {
       <button className="connection-primary" disabled={busy || reading} onClick={async () => {
         setBusy(true); setError('')
         try {
-          const names = ['data-dictionary.md', 'business-glossary.md', 'example-questions.sql']
+          const names = ['data-dictionary.txt', 'business-glossary.txt', 'example-questions.sql']
           const examples = await Promise.all(names.map(async name => {
             const response = await fetch(`/reference-examples/${name}`)
             if (!response.ok) throw Error('Could not load the examples. Try again.')
